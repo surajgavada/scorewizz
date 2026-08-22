@@ -1,0 +1,1038 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d1829" />
+    <meta name="description" content="Offline Cricket Scoreboard, Tournament Manager, Points Table with NRR, Live Stats & Awards" />
+    <title>ScoreWizz | Cricket Tournament & Match Centre</title>
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="stylesheet" href="styles.css?v=14" />
+    <script>
+      // Clear stale caches so user always gets the latest code
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (let reg of registrations) reg.update();
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <!-- SIDEBAR NAVIGATION -->
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2L15 8H9L12 2zM4 9h16v2H4V9zm2 4h12v9H6v-9zm2 2v5h2v-5H8zm6 0v5h2v-5h-2z" />
+            </svg>
+          </span>
+          <div class="brand-text">
+            <strong>ScoreWizz</strong>
+            <small>Cricket Centre</small>
+          </div>
+        </div>
+
+        <div class="offline-pill" id="offlineStatusPill">
+          <span class="pulse-dot"></span> <span id="offlineStatusText">Offline Ready</span>
+        </div>
+
+        <div class="tournament-badge-mini" id="sidebarTournamentBadge">
+          <small>CURRENT TOURNAMENT</small>
+          <strong id="sidebarTournamentName">Premier T20 2026</strong>
+        </div>
+
+        <nav class="main-nav" aria-label="Main navigation">
+          <button class="nav-item active" data-view="scoreboard">
+            <span class="icon">🏟️</span> Scoreboard
+          </button>
+          <button class="nav-item" data-view="scorecard">
+            <span class="icon">📋</span> Full Scorecard
+          </button>
+          <button class="nav-item" data-view="pointsTable">
+            <span class="icon">🏆</span> Points Table
+          </button>
+          <button class="nav-item" data-view="fixtures">
+            <span class="icon">🗓️</span> Schedule & Matches
+          </button>
+          <button class="nav-item" data-view="teams">
+            <span class="icon">👥</span> Teams & Players
+          </button>
+          <button class="nav-item" data-view="leaderboards">
+            <span class="icon">🎖️</span> Leaderboards
+          </button>
+          <button class="nav-item" data-view="summary">
+            <span class="icon">📈</span> Match Summary
+          </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <button class="btn btn-primary btn-block wizard-btn" id="openWizardBtn">
+            <span>＋</span> New Tournament
+          </button>
+          <button class="btn btn-secondary btn-block quick-match-btn" id="openQuickMatchBtn">
+            <span>⚡</span> Quick Match
+          </button>
+          <p class="saved-note">
+            💾 Autosaved offline on this device.
+          </p>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT WRAPPER -->
+      <main class="main-content">
+        <!-- TOPBAR -->
+        <header class="topbar">
+          <div class="topbar-left">
+            <p class="eyebrow" id="topbarEyebrow">Premier T20 Championship 2026</p>
+            <h1 id="pageTitle">Live Scoreboard</h1>
+          </div>
+          <div class="top-actions">
+            <span class="live-status" id="liveStatusBadge"><i></i> <span id="liveStatusText">LIVE MATCH</span></span>
+            <button class="btn btn-sm btn-ghost" id="swapStrikeBtn" title="Swap strike between batsmen">⇄ Swap Strike</button>
+            <button class="btn btn-sm btn-ghost" id="exportMatchBtn" title="Export Match Scorecard">📥 Export</button>
+            <button class="icon-button" id="resetMatchBtn" title="Reset Current Match">↻</button>
+            <button class="theme-toggle" id="themeToggleBtn" title="Toggle Theme">🌙</button>
+          </div>
+        </header>
+
+        <!-- VIEW 1: LIVE SCOREBOARD -->
+        <section id="scoreboardView" class="view active-view">
+          <div class="match-heading">
+            <div>
+              <span class="competition" id="matchCompetitionTag">T20 LEAGUE • MATCH #1</span>
+              <h2 id="matchTitleHeading"><span id="team1NameHead">Riverside Strikers</span> <b>vs</b> <span id="team2NameHead">North Stars</span></h2>
+              <p class="muted" id="matchSubheading">Riverside Ground • Toss: Riverside won and chose to bat</p>
+            </div>
+            <div class="match-heading-right">
+              <span class="innings-tag" id="inningsBadge">1st Innings</span>
+              <button class="btn btn-sm btn-outline" id="switchInningsBtn">End Innings ➔</button>
+            </div>
+          </div>
+
+          <!-- BIG SCORE HERO -->
+          <section class="score-hero">
+            <div class="team-badge" id="battingTeamBadge">RVS</div>
+            <div class="score-copy">
+              <p><span id="battingTeamName">Riverside Strikers</span> <span class="badge-status">BATTING</span></p>
+              <div class="big-score" id="scoreDisplay">0<span>/0</span></div>
+              <div class="overs-wrap">
+                <strong id="oversDisplay">0.0 <small>/ 20 ov</small></strong>
+                <span class="balls-left" id="ballsLeftDisplay">120 balls remaining</span>
+              </div>
+              <div class="target-card" id="targetCard" style="display: none;">
+                <span class="target-title">TARGET: <strong id="targetRunsDisplay">145</strong></span>
+                <span class="target-sub" id="targetSubDisplay">Need 145 runs from 120 balls</span>
+              </div>
+            </div>
+            <div class="run-rate-box">
+              <div>
+                <span>Current RR</span>
+                <strong id="runRateDisplay">0.00</strong>
+              </div>
+              <div id="requiredRRBox" style="display: none; margin-top: 8px;">
+                <span>Required RR</span>
+                <strong id="reqRunRateDisplay" class="req-rr">7.25</strong>
+              </div>
+            </div>
+          </section>
+
+          <!-- CONTENT GRID: BATSMEN + BOWLER -->
+          <div class="content-grid">
+            <!-- BATSMEN AT CREASE -->
+            <section class="panel batters-panel">
+              <div class="panel-title">
+                <div>
+                  <h3>🏏 At the crease</h3>
+                  <span class="live-label" id="creaseLabel">● ON STRIKE: <span id="onStrikeName">Striker</span></span>
+                </div>
+                <div class="top-actions">
+                  <button class="btn btn-xs btn-outline" id="selectBatsmenBtn">🏏 Select Batsmen</button>
+                  <button class="btn btn-xs btn-ghost" id="swapStrikeCreaseBtn" title="Swap Strike">⇄ Swap Strike</button>
+                </div>
+              </div>
+              <div class="batter-table">
+                <div class="batter-row header-row">
+                  <span>Batter</span>
+                  <span>R</span>
+                  <span>B</span>
+                  <span>4s</span>
+                  <span>6s</span>
+                  <span>SR</span>
+                </div>
+                <!-- Striker Row -->
+                <div class="batter-row striker" id="strikerRow">
+                  <div class="batter-info">
+                    <strong id="strikerName">Arjun Mehta</strong>
+                    <small class="striker-pill">● Striker</small>
+                  </div>
+                  <strong id="strikerRuns">0</strong>
+                  <span id="strikerBalls">0</span>
+                  <span id="strikerFours">0</span>
+                  <span id="strikerSixes">0</span>
+                  <strong id="strikerSR">0.0</strong>
+                </div>
+                <!-- Non-Striker Row -->
+                <div class="batter-row" id="nonStrikerRow">
+                  <div class="batter-info">
+                    <strong id="nonStrikerName">Rohan Kapoor</strong>
+                    <small>Non-striker</small>
+                  </div>
+                  <strong id="nonStrikerRuns">0</strong>
+                  <span id="nonStrikerBalls">0</span>
+                  <span id="nonStrikerFours">0</span>
+                  <span id="nonStrikerSixes">0</span>
+                  <strong id="nonStrikerSR">0.0</strong>
+                </div>
+              </div>
+              <div class="partnership-bar">
+                <span>Partnership</span>
+                <strong id="partnershipDisplay">0 runs <small>(0 balls)</small></strong>
+                <em id="partnershipRRDisplay">RR: 0.00</em>
+              </div>
+            </section>
+
+            <!-- CURRENT BOWLER -->
+            <section class="panel bowler-panel">
+              <div class="panel-title">
+                <h3>🎯 Bowling</h3>
+                <button class="btn btn-xs btn-outline" id="changeBowlerBtn">Change Bowler</button>
+              </div>
+              <div class="bowler-card">
+                <div class="bowler-avatar" id="bowlerAvatar">DM</div>
+                <div class="bowler-details">
+                  <strong id="bowlerName">Dev Malhotra</strong>
+                  <small id="bowlerFigures">0.0 ov • 0/0 • 0 maidens</small>
+                </div>
+                <div class="bowler-econ">
+                  <b id="bowlerEcon">0.00</b>
+                  <small>ECON</small>
+                </div>
+              </div>
+              <!-- This Over Ball Strip -->
+              <div class="over-strip-wrap">
+                <span class="strip-label">THIS OVER:</span>
+                <div class="ball-strip" id="thisOverStrip">
+                  <span class="empty-ball">-</span>
+                </div>
+              </div>
+              <div class="bowler-foot">
+                <span>This over: <strong id="thisOverRuns">0 runs</strong></span>
+                <span>Dots: <strong id="bowlerDots">0</strong></span>
+              </div>
+            </section>
+          </div>
+
+          <!-- SCORING CONTROLS PAD -->
+          <section class="panel scoring-panel">
+            <div class="panel-title">
+              <div>
+                <h3> Quick Scoring Controls</h3>
+                <p class="muted">Click runs or extras to score. Automatic strike rotation and bowler change handled.</p>
+              </div>
+              <div class="panel-actions">
+                <button class="undo-button" id="undoButton">↶ Undo Ball</button>
+              </div>
+            </div>
+            <div class="scoring-controls">
+              <!-- Regular Runs -->
+              <button data-runs="0" class="run-button dot-run">•<small>DOT</small></button>
+              <button data-runs="1" class="run-button">1<small>SINGLE</small></button>
+              <button data-runs="2" class="run-button">2<small>DOUBLE</small></button>
+              <button data-runs="3" class="run-button">3<small>THREE</small></button>
+              <button data-runs="4" class="run-button boundary">4<small>FOUR</small></button>
+              <button data-runs="6" class="run-button six">6<small>SIX</small></button>
+              
+              <!-- Extras -->
+              <button data-extra="WD" class="extra-button">WD<small>WIDE</small></button>
+              <button data-extra="NB" class="extra-button">NB<small>NO BALL</small></button>
+              <button data-extra="LB" class="extra-button">LB<small>LEG BYE</small></button>
+              <button data-extra="B" class="extra-button">B<small>BYE</small></button>
+              
+              <!-- Wicket -->
+              <button data-wicket="true" class="wicket-button">W<small>WICKET</small></button>
+            </div>
+          </section>
+
+          <!-- BALL BY BALL TIMELINE -->
+          <section class="timeline panel">
+            <div class="panel-title">
+              <h3>📜 Recent Deliveries Timeline</h3>
+              <button class="link-button" data-view-link="scorecard">View full scorecard →</button>
+            </div>
+            <div class="timeline-row" id="timelineRow">
+              <span class="muted" style="padding: 10px;">Match ready to begin. Score the first ball above!</span>
+            </div>
+          </section>
+        </section>
+
+        <!-- VIEW 2: FULL SCORECARD -->
+        <section id="scorecardView" class="view">
+          <div class="section-heading">
+            <span class="competition">OFFICIAL MATCH SCORECARD</span>
+            <h2 id="scorecardHeading">Riverside Strikers vs North Stars</h2>
+            <div class="scorecard-tabs">
+              <button class="tab-btn active" id="tabInn1">1st Innings</button>
+              <button class="tab-btn" id="tabInn2">2nd Innings</button>
+            </div>
+          </div>
+
+          <div id="innings1ScorecardBlock" class="scorecard-block">
+            <!-- Innings 1 Batting -->
+            <section class="panel mb-4">
+              <div class="panel-title">
+                <h3 id="inn1BattingHeader">Innings 1 - Batting Scorecard</h3>
+                <span class="badge-tag" id="inn1TotalBadge">0/0 (0.0 ov)</span>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table" id="inn1BattingTable">
+                  <thead>
+                    <tr>
+                      <th>Batter</th>
+                      <th>Dismissal</th>
+                      <th class="text-right">R</th>
+                      <th class="text-right">B</th>
+                      <th class="text-right">4s</th>
+                      <th class="text-right">6s</th>
+                      <th class="text-right">SR</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <div class="scorecard-meta-row" id="inn1ExtrasRow">
+                <span>Extras: <strong>0 (b 0, lb 0, w 0, nb 0)</strong></span>
+                <span>Total: <strong>0/0 (0.0 overs)</strong></span>
+              </div>
+              <div class="fow-box">
+                <strong>Fall of Wickets:</strong>
+                <span id="inn1FOWText">None yet</span>
+              </div>
+            </section>
+
+            <!-- Innings 1 Bowling -->
+            <section class="panel">
+              <div class="panel-title">
+                <h3 id="inn1BowlingHeader">Innings 1 - Bowling Figures</h3>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table" id="inn1BowlingTable">
+                  <thead>
+                    <tr>
+                      <th>Bowler</th>
+                      <th class="text-right">O</th>
+                      <th class="text-right">M</th>
+                      <th class="text-right">R</th>
+                      <th class="text-right">W</th>
+                      <th class="text-right">ECON</th>
+                      <th class="text-right">Dots</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div id="innings2ScorecardBlock" class="scorecard-block" style="display: none;">
+            <!-- Innings 2 Batting -->
+            <section class="panel mb-4">
+              <div class="panel-title">
+                <h3 id="inn2BattingHeader">Innings 2 - Batting Scorecard</h3>
+                <span class="badge-tag" id="inn2TotalBadge">0/0 (0.0 ov)</span>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table" id="inn2BattingTable">
+                  <thead>
+                    <tr>
+                      <th>Batter</th>
+                      <th>Dismissal</th>
+                      <th class="text-right">R</th>
+                      <th class="text-right">B</th>
+                      <th class="text-right">4s</th>
+                      <th class="text-right">6s</th>
+                      <th class="text-right">SR</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <div class="scorecard-meta-row" id="inn2ExtrasRow">
+                <span>Extras: <strong>0 (b 0, lb 0, w 0, nb 0)</strong></span>
+                <span>Total: <strong>0/0 (0.0 overs)</strong></span>
+              </div>
+              <div class="fow-box">
+                <strong>Fall of Wickets:</strong>
+                <span id="inn2FOWText">None yet</span>
+              </div>
+            </section>
+
+            <!-- Innings 2 Bowling -->
+            <section class="panel">
+              <div class="panel-title">
+                <h3 id="inn2BowlingHeader">Innings 2 - Bowling Figures</h3>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table" id="inn2BowlingTable">
+                  <thead>
+                    <tr>
+                      <th>Bowler</th>
+                      <th class="text-right">O</th>
+                      <th class="text-right">M</th>
+                      <th class="text-right">R</th>
+                      <th class="text-right">W</th>
+                      <th class="text-right">ECON</th>
+                      <th class="text-right">Dots</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- VIEW 3: TOURNAMENT POINTS TABLE -->
+        <section id="pointsTableView" class="view">
+          <div class="section-heading">
+            <span class="competition">TOURNAMENT STANDINGS</span>
+            <h2 id="pointsTableHeading">Points Table & Net Run Rate (NRR)</h2>
+            <p class="muted">Points Table updates automatically when matches are concluded. Win = 2 pts, Tie/NR = 1 pt.</p>
+          </div>
+
+          <section class="panel">
+            <div class="table-responsive">
+              <table class="data-table points-table" id="pointsTableElement">
+                <thead>
+                  <tr>
+                    <th>Pos</th>
+                    <th>Team</th>
+                    <th class="text-center">M</th>
+                    <th class="text-center">W</th>
+                    <th class="text-center">L</th>
+                    <th class="text-center">T</th>
+                    <th class="text-center">Pts</th>
+                    <th class="text-right">NRR</th>
+                    <th>Form</th>
+                  </tr>
+                </thead>
+                <tbody id="pointsTableBody">
+                  <!-- Dynamically populated -->
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <div class="nrr-info-card">
+            <h4>💡 How Net Run Rate (NRR) is calculated:</h4>
+            <p>
+              <code>NRR = (Total Runs Scored / Total Legal Overs Faced) - (Total Runs Conceded / Total Legal Overs Bowled)</code>
+            </p>
+            <small class="muted">In matches where a team is bowled out before completing their quota of overs, the full quota of overs is used for NRR calculation as per ICC standard rules.</small>
+          </div>
+        </section>
+
+        <!-- VIEW 4: SCHEDULE & FIXTURES -->
+        <section id="fixturesView" class="view">
+          <div class="section-heading">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <span class="competition">MATCH SCHEDULE</span>
+                <h2 id="fixturesHeading">Tournament Fixtures</h2>
+              </div>
+              <div class="top-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <div id="fixturesViewToggleGroup" style="display: none; gap: 4px;">
+                  <button class="btn btn-sm btn-primary" id="fixturesListToggleBtn">📋 List View</button>
+                  <button class="btn btn-sm btn-outline" id="fixturesBracketToggleBtn">🌳 Schedule Graph / Bracket</button>
+                </div>
+                <button class="btn btn-outline btn-sm" id="openAddFixtureModalBtn">＋ Add Match</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- List View -->
+          <div class="fixtures-grid" id="fixturesGrid">
+            <!-- Dynamically populated fixtures -->
+          </div>
+
+          <!-- Visual Knockout Bracket / Schedule Graph -->
+          <div id="knockoutBracketContainer" class="knockout-bracket-container panel" style="display: none; overflow-x: auto; padding: 20px 14px;">
+            <!-- Rendered by JS -->
+          </div>
+        </section>
+
+        <!-- VIEW 5: TEAMS & PLAYERS -->
+        <section id="teamsView" class="view">
+          <div class="section-heading">
+            <span class="competition">SQUADS & ROSTERS</span>
+            <h2>Teams & Player Cards</h2>
+            <p class="muted">View tournament player career stats, averages, strike rates, and bowling records.</p>
+          </div>
+
+          <!-- Team Selector Pills -->
+          <div class="team-pills" id="teamPills">
+            <!-- Dynamically populated -->
+          </div>
+
+          <div class="team-header-panel panel mb-4" id="teamHeaderPanel">
+            <div class="team-big-badge" id="teamBigBadge">RVS</div>
+            <div style="flex: 1;">
+              <h3 id="teamBigName">Riverside Strikers</h3>
+              <p class="muted" id="teamBigInfo">15 Players in Squad • 0 Matches Played</p>
+            </div>
+            <div>
+              <button class="btn btn-outline btn-sm" id="openEditSquadModalBtn">✏️ Edit Team Squad</button>
+            </div>
+          </div>
+
+          <div class="player-grid-cards" id="playerGridCards">
+            <!-- Player cards dynamically injected -->
+          </div>
+        </section>
+
+        <!-- VIEW 6: LEADERBOARDS (ORANGE/PURPLE CAP/MVP) -->
+        <section id="leaderboardsView" class="view">
+          <div class="section-heading">
+            <span class="competition">TOURNAMENT STATS & AWARDS</span>
+            <h2>Tournament Leaderboards</h2>
+            <p class="muted">Top performers across all tournament matches.</p>
+          </div>
+
+          <div class="caps-grid">
+            <!-- Orange Cap (Top Batsman) -->
+            <div class="cap-card orange-cap-card panel">
+              <div class="cap-header">
+                <span class="cap-badge orange">👑 ORANGE CAP</span>
+                <h3>Leading Run Scorer</h3>
+              </div>
+              <div class="cap-winner" id="orangeCapWinner">
+                <div class="player-initials warm" id="orangeCapInitials">AM</div>
+                <div>
+                  <h4 id="orangeCapName">Arjun Mehta</h4>
+                  <small id="orangeCapTeam">Riverside Strikers</small>
+                </div>
+                <div class="cap-stat">
+                  <strong id="orangeCapRuns">0</strong>
+                  <small>RUNS</small>
+                </div>
+              </div>
+              <div class="cap-table-wrap">
+                <table class="mini-table" id="orangeCapTable">
+                  <thead>
+                    <tr><th>Player</th><th>Team</th><th class="text-right">Runs</th><th class="text-right">SR</th></tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Purple Cap (Top Bowler) -->
+            <div class="cap-card purple-cap-card panel">
+              <div class="cap-header">
+                <span class="cap-badge purple">🎯 PURPLE CAP</span>
+                <h3>Leading Wicket Taker</h3>
+              </div>
+              <div class="cap-winner" id="purpleCapWinner">
+                <div class="player-initials dark" id="purpleCapInitials">DM</div>
+                <div>
+                  <h4 id="purpleCapName">Dev Malhotra</h4>
+                  <small id="purpleCapTeam">North Stars</small>
+                </div>
+                <div class="cap-stat">
+                  <strong id="purpleCapWickets">0</strong>
+                  <small>WKTS</small>
+                </div>
+              </div>
+              <div class="cap-table-wrap">
+                <table class="mini-table" id="purpleCapTable">
+                  <thead>
+                    <tr><th>Player</th><th>Team</th><th class="text-right">Wkts</th><th class="text-right">Econ</th></tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 7: MATCH SUMMARY & AWARDS -->
+        <section id="summaryView" class="view">
+          <div class="section-heading">
+            <span class="competition">MATCH REPORT & AWARDS</span>
+            <h2>Match Summary & Awards</h2>
+            <p class="muted" id="summarySubhead">Detailed report and standout player awards.</p>
+          </div>
+
+          <div class="summary-result-banner panel" id="summaryResultBanner">
+            <span class="trophy-icon">🏆</span>
+            <div>
+              <h3 id="summaryResultTitle">Match In Progress</h3>
+              <p class="muted" id="summaryResultDetail">Current match is live on the scoreboard.</p>
+            </div>
+          </div>
+
+          <div class="awards-grid" id="awardsGrid">
+            <!-- Player of the Match -->
+            <article class="player-card featured">
+              <span class="award">⭐ MAN OF THE MATCH</span>
+              <div class="player-initials warm" id="potmInitials">AM</div>
+              <h3 id="potmName">Arjun Mehta</h3>
+              <p><span id="potmTeam">Riverside Strikers</span> • <span id="potmRole">Batter</span></p>
+              <strong id="potmMainStat">68 <small>runs off 43 balls</small></strong>
+              <div class="player-meta" id="potmMeta">
+                <span>7 fours</span>
+                <span>2 sixes</span>
+                <span>158.14 SR</span>
+              </div>
+            </article>
+
+            <!-- Best Batsman -->
+            <article class="player-card">
+              <span class="award orange">🏏 BEST BATSMAN</span>
+              <div class="player-initials" id="bestBatInitials">AM</div>
+              <h3 id="bestBatName">Arjun Mehta</h3>
+              <p><span id="bestBatTeam">Riverside Strikers</span></p>
+              <strong id="bestBatStat">68 <small>runs (43b)</small></strong>
+              <div class="player-meta" id="bestBatMeta">
+                <span>158.14 SR</span>
+                <span>7x4, 2x6</span>
+              </div>
+            </article>
+
+            <!-- Best Bowler -->
+            <article class="player-card">
+              <span class="award green">🎯 BEST BOWLER</span>
+              <div class="player-initials dark" id="bestBowlInitials">DM</div>
+              <h3 id="bestBowlName">Dev Malhotra</h3>
+              <p><span id="bestBowlTeam">North Stars</span></p>
+              <strong id="bestBowlStat">1/26 <small>in 4.0 ov</small></strong>
+              <div class="player-meta" id="bestBowlMeta">
+                <span>6.50 Economy</span>
+                <span>12 Dots</span>
+              </div>
+            </article>
+          </div>
+
+          <!-- Innings Progression Panel -->
+          <section class="panel innings-panel mt-4">
+            <div class="panel-title">
+              <h3>Innings Run Comparison</h3>
+            </div>
+            <div class="innings-line">
+              <strong id="summaryTeam1Name">Team 1</strong>
+              <b id="summaryTeam1Score">0/0 (0.0)</b>
+              <div class="progress"><i id="summaryTeam1Progress" style="width: 0%"></i></div>
+            </div>
+            <div class="innings-line">
+              <strong id="summaryTeam2Name">Team 2</strong>
+              <b id="summaryTeam2Score">0/0 (0.0)</b>
+              <div class="progress pale"><i id="summaryTeam2Progress" style="width: 0%"></i></div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <!-- ==================== MODALS ==================== -->
+
+    <!-- 1. TOURNAMENT SETUP WIZARD MODAL -->
+    <div class="modal-backdrop" id="tournamentWizardModal">
+      <div class="modal-card modal-lg">
+        <div class="modal-header">
+          <div>
+            <span class="competition">STEP-BY-STEP SETUP</span>
+            <h2>🏆 Create Tournament</h2>
+          </div>
+          <button class="modal-close" id="closeWizardBtn">✕</button>
+        </div>
+
+        <div class="wizard-steps-indicator">
+          <div class="step-badge active" data-step="1">1. Tournament</div>
+          <div class="step-badge" data-step="2">2. Teams</div>
+          <div class="step-badge" data-step="3">3. Players</div>
+          <div class="step-badge" data-step="4">4. Schedule</div>
+        </div>
+
+        <div class="modal-body">
+          <!-- STEP 1: TOURNAMENT DETAILS -->
+          <div class="wizard-step active" id="wizardStep1">
+            <h3>Tournament Info & Configuration</h3>
+            <div class="form-group">
+              <label>🏆 Tournament Name</label>
+              <input type="text" id="wizTourName" class="form-control" placeholder="e.g. Premier T20 Cup 2026" value="Premier T20 Championship 2026" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>🏏 Overs Per Match (Enter custom or select)</label>
+                <input type="number" id="wizTourOvers" class="form-control" min="1" max="100" placeholder="e.g. 20" value="20" />
+                <div style="display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap;">
+                  <button type="button" class="btn btn-xs btn-ghost quick-overs-btn" data-overs="5">5 Ov</button>
+                  <button type="button" class="btn btn-xs btn-ghost quick-overs-btn" data-overs="10">10 Ov</button>
+                  <button type="button" class="btn btn-xs btn-ghost quick-overs-btn" data-overs="15">15 Ov</button>
+                  <button type="button" class="btn btn-xs btn-ghost quick-overs-btn" data-overs="20">20 Ov</button>
+                  <button type="button" class="btn btn-xs btn-ghost quick-overs-btn" data-overs="50">50 Ov</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>👥 Number of Teams (Type any number — no limit)</label>
+                <input type="number" id="wizTourNumTeams" class="form-control" min="2" placeholder="e.g. 4, 8, 12, 16, 20..." value="4" />
+                <div style="display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap;">
+                  <button type="button" class="btn btn-xs btn-ghost quick-teams-btn" data-teams="2">2</button>
+                  <button type="button" class="btn btn-xs btn-ghost quick-teams-btn" data-teams="4">4</button>
+                  <button type="button" class="btn btn-xs btn-ghost quick-teams-btn" data-teams="6">6</button>
+                  <button type="button" class="btn btn-xs btn-ghost quick-teams-btn" data-teams="8">8</button>
+                  <button type="button" class="btn btn-xs btn-ghost quick-teams-btn" data-teams="10">10</button>
+                  <button type="button" class="btn btn-xs btn-ghost quick-teams-btn" data-teams="12">12</button>
+                  <button type="button" class="btn btn-xs btn-ghost quick-teams-btn" data-teams="16">16</button>
+                  <button type="button" class="btn btn-xs btn-ghost quick-teams-btn" data-teams="20">20</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 2: TEAMS -->
+          <div class="wizard-step" id="wizardStep2">
+            <div class="step-head-row">
+              <h3>Configure Teams</h3>
+              <button class="btn btn-xs btn-outline" id="wizQuickFillTeamsBtn">⚡ Quick Fill Defaults</button>
+            </div>
+            <div id="wizTeamsContainer" class="wiz-teams-container">
+              <!-- Dynamically generated team input rows -->
+            </div>
+          </div>
+
+          <!-- STEP 3: PLAYERS & SQUAD MANAGEMENT -->
+          <div class="wizard-step" id="wizardStep3">
+            <div class="step-head-row">
+              <div>
+                <h3>Team Rosters & Squad Setup</h3>
+                <p class="muted">Minimum 11, Maximum 15 players per squad. Designate Captain (C) & Vice-Captain (VC).</p>
+              </div>
+              <button class="btn btn-xs btn-outline" id="wizQuickFillPlayersBtn">⚡ Quick Fill All Squads</button>
+            </div>
+            
+            <!-- Team Selection Tabs -->
+            <div class="team-sub-tabs" id="wizTeamTabs"></div>
+
+            <!-- Active Team Squad Header & Captain / VC Selectors -->
+            <div class="squad-config-panel panel mb-3">
+              <div class="squad-config-top">
+                <div class="squad-title-wrap">
+                  <strong id="wizActiveTeamTitle">Riverside Strikers</strong>
+                  <span class="squad-count-badge" id="wizSquadCountBadge">11 / 15 Players (Min: 11)</span>
+                </div>
+                <div class="squad-actions-top">
+                  <button class="btn btn-xs btn-outline" id="wizAddPlayerBtn">＋ Add Player (Max 15)</button>
+                  <button class="btn btn-xs btn-success" id="wizSaveCurrentTeamBtn">💾 Save Team Squad</button>
+                </div>
+              </div>
+              <div class="form-row mt-3">
+                <div class="form-group mb-0">
+                  <label>👑 Team Captain (C)</label>
+                  <select id="wizCaptainSelect" class="form-control"></select>
+                </div>
+                <div class="form-group mb-0">
+                  <label>⭐ Vice-Captain (VC)</label>
+                  <select id="wizViceCaptainSelect" class="form-control"></select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Player Input Rows -->
+            <div id="wizPlayersContainer" class="wiz-players-container"></div>
+
+            <div class="squad-bottom-bar mt-3" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card-alt); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--line);">
+              <span class="muted" style="font-size: 12px;">Ensure squad has between 11 and 15 players with Captain & VC selected.</span>
+              <button class="btn btn-sm btn-success" id="wizSaveCurrentTeamBottomBtn">💾 Save Team Squad</button>
+            </div>
+          </div>
+
+          <!-- STEP 4: SCHEDULE -->
+          <div class="wizard-step" id="wizardStep4">
+            <h3>Tournament Schedule Generator</h3>
+            <p class="muted">Choose how you want to build the tournament match schedule:</p>
+            <div class="schedule-options">
+              <!-- OPTION 1: ROUND-ROBIN LEAGUE -->
+              <label class="schedule-option active" id="scheduleOptAuto">
+                <input type="radio" name="scheduleType" value="auto" checked />
+                <div class="opt-content">
+                  <strong>🔄 Round-Robin / League Rounds (Points Table & NRR)</strong>
+                  <p class="muted">Teams play against each other in balanced rounds. Full points table standings.</p>
+                  
+                  <!-- Number of rounds selector -->
+                  <div class="form-group mt-3" id="wizAutoRoundsConfig" style="margin-bottom: 0;">
+                    <label style="font-weight: 700; color: var(--ink);">🔄 How many rounds should each team play against each other?</label>
+                    <select id="wizTournamentRounds" class="form-control" style="background: var(--bg-card); margin-top: 6px;">
+                      <option value="1" selected>1 Round (Single Round-Robin — Play each team once)</option>
+                      <option value="2">2 Rounds (Double Round-Robin / Home & Away — Play each team twice)</option>
+                      <option value="3">3 Rounds (Play each team 3 times)</option>
+                      <option value="4">4 Rounds (Play each team 4 times)</option>
+                    </select>
+                    <div style="margin-top: 6px; font-size: 12px; color: var(--gold);" id="wizCalculatedMatchesNote">
+                      📊 6 matches scheduled across 3 matchdays
+                    </div>
+                  </div>
+                </div>
+              </label>
+
+              <!-- OPTION 2: PURE KNOCKOUT / SINGLE ELIMINATION -->
+              <label class="schedule-option" id="scheduleOptKnockout">
+                <input type="radio" name="scheduleType" value="knockout" />
+                <div class="opt-content">
+                  <strong>🏆 Knockout / Single-Elimination Tournament</strong>
+                  <p class="muted">High-stakes elimination tree (Quarter-Finals, Semi-Finals, Grand Final). Winning teams advance automatically to the next round!</p>
+                  
+                  <div style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                    <div style="font-size: 12px; color: var(--coral);" id="wizKnockoutNote">
+                      🏆 3 knockout matches (Semi-Finals & Grand Final)
+                    </div>
+                    <button type="button" class="btn btn-xs btn-outline" id="wizToggleKnockoutGraphBtn" style="font-size: 11px;">🌳 View Schedule Graph</button>
+                  </div>
+
+                  <!-- Visual Schedule Graph inside Wizard -->
+                  <div id="wizKnockoutGraphPreview" style="display: none; margin-top: 10px; background: var(--bg-card); padding: 14px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); overflow-x: auto;">
+                    <!-- Dynamically rendered bracket tree -->
+                  </div>
+                </div>
+              </label>
+
+              <!-- OPTION 3: MANUAL SCHEDULE -->
+              <label class="schedule-option" id="scheduleOptManual">
+                <input type="radio" name="scheduleType" value="manual" />
+                <div class="opt-content">
+                  <strong>✍️ Custom Manual Matchmaker</strong>
+                  <p class="muted">Manually pair up specific teams and build your own custom match list.</p>
+                </div>
+              </label>
+            </div>
+
+            <!-- Manual Matches Container (shown if manual selected) -->
+            <div id="wizManualScheduleArea" style="display: none; margin-top: 18px;">
+              <div class="step-head-row">
+                <h4>Custom Fixture List</h4>
+                <button class="btn btn-xs btn-outline" id="wizAddManualMatchBtn">＋ Add Matchup</button>
+              </div>
+              <div id="wizManualMatchesList" class="manual-matches-list">
+                <!-- Manual match rows -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="wizBackBtn" style="display: none;">Back</button>
+          <button class="btn btn-primary" id="wizNextBtn">Next Step ➔</button>
+          <button class="btn btn-success" id="wizLaunchBtn" style="display: none;">🚀 Launch Tournament Hub</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. WICKET DISMISSAL MODAL -->
+    <div class="modal-backdrop" id="wicketModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>🎯 Record Wicket Dismissal</h3>
+          <button class="modal-close" id="closeWicketModalBtn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Dismissal Type</label>
+            <select id="wktDismissalType" class="form-control">
+              <option value="Bowled">Bowled</option>
+              <option value="Caught" selected>Caught</option>
+              <option value="LBW">LBW</option>
+              <option value="Run Out">Run Out</option>
+              <option value="Stumped">Stumped</option>
+              <option value="Hit Wicket">Hit Wicket</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Batter Dismissed</label>
+            <select id="wktBatterOut" class="form-control">
+              <!-- Striker or Non-striker -->
+            </select>
+          </div>
+          <div class="form-group" id="wktFielderGroup">
+            <label>Fielder (Catcher / Run Out)</label>
+            <input type="text" id="wktFielderName" class="form-control" placeholder="Fielder name (optional)" />
+          </div>
+          <div class="form-group">
+            <label>Select Next Incoming Batter</label>
+            <select id="wktNextBatter" class="form-control">
+              <!-- Remaining squad batters -->
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="cancelWicketBtn">Cancel</button>
+          <button class="btn btn-danger" id="confirmWicketBtn">Confirm Wicket</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2B. BATSMAN SELECTION MODAL (Striker & Non-Striker) -->
+    <div class="modal-backdrop" id="batsmanModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <span class="competition">CREASE MANAGEMENT</span>
+            <h3>🏏 Select Batsmen at Crease</h3>
+          </div>
+          <button class="modal-close" id="closeBatsmanModalBtn">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="muted">Choose the on-strike batsman and non-striker from the batting lineup.</p>
+          <div class="form-group">
+            <label>🔴 Striker (On Strike)</label>
+            <select id="selectStrikerDropdown" class="form-control"></select>
+          </div>
+          <div class="form-group">
+            <label>⚪ Non-Striker</label>
+            <select id="selectNonStrikerDropdown" class="form-control"></select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="cancelBatsmanModalBtn">Cancel</button>
+          <button class="btn btn-primary" id="confirmBatsmanModalBtn">✓ Set Batsmen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. BOWLER SELECTOR MODAL -->
+    <div class="modal-backdrop" id="bowlerModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>🎯 Select Bowler for Next Over</h3>
+          <button class="modal-close" id="closeBowlerModalBtn">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="muted">Choose a bowler from the bowling team (consecutive overs by same bowler not allowed).</p>
+          <div class="form-group">
+            <label>Select Bowler</label>
+            <select id="nextBowlerSelect" class="form-control">
+              <!-- Bowling team players -->
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="confirmBowlerBtn">Start Over</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. QUICK MATCH SETUP MODAL -->
+    <div class="modal-backdrop" id="quickMatchModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>⚡ Quick Match Setup</h3>
+          <button class="modal-close" id="closeQuickMatchModalBtn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Team 1 (Batting First)</label>
+            <select id="quickTeam1Select" class="form-control"></select>
+          </div>
+          <div class="form-group">
+            <label>Team 2 (Bowling First)</label>
+            <select id="quickTeam2Select" class="form-control"></select>
+          </div>
+          <div class="form-group">
+            <label>Match Overs</label>
+            <select id="quickOversSelect" class="form-control">
+              <option value="5">5 Overs</option>
+              <option value="10">10 Overs</option>
+              <option value="20" selected>20 Overs (T20)</option>
+              <option value="50">50 Overs (ODI)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="cancelQuickMatchBtn">Cancel</button>
+          <button class="btn btn-primary" id="startQuickMatchBtn">Start Match</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4B. SQUAD EDITOR MODAL (11 to 15 Players, Roles, C & VC) -->
+    <div class="modal-backdrop" id="editSquadModal">
+      <div class="modal-card modal-lg">
+        <div class="modal-header">
+          <div>
+            <span class="competition" id="editSquadCompetitionTag">SQUAD MANAGEMENT</span>
+            <h2 id="editSquadModalTitle">✏️ Edit Team Squad</h2>
+          </div>
+          <button class="modal-close" id="closeEditSquadModalBtn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="squad-config-panel panel mb-3">
+            <div class="squad-config-top">
+              <div class="squad-title-wrap">
+                <strong id="editSquadTeamTitle">Team Name</strong>
+                <span class="squad-count-badge" id="editSquadCountBadge">15 / 15 Players (Min: 11, Max: 15)</span>
+              </div>
+              <div class="squad-actions-top">
+                <button class="btn btn-xs btn-outline" id="editSquadAddPlayerBtn">＋ Add Player (Max 15)</button>
+              </div>
+            </div>
+            <div class="form-row mt-3">
+              <div class="form-group mb-0">
+                <label>👑 Team Captain (C)</label>
+                <select id="editSquadCaptainSelect" class="form-control"></select>
+              </div>
+              <div class="form-group mb-0">
+                <label>⭐ Vice-Captain (VC)</label>
+                <select id="editSquadViceCaptainSelect" class="form-control"></select>
+              </div>
+            </div>
+          </div>
+
+          <div id="editSquadPlayersContainer" class="wiz-players-container"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="cancelEditSquadBtn">Cancel</button>
+          <button class="btn btn-success" id="saveEditSquadBtn">💾 Save Squad Changes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. MATCH RESULT VICTORY MODAL -->
+    <div class="modal-backdrop" id="victoryModal">
+      <div class="modal-card modal-victory text-center">
+        <div class="trophy-big">🏆</div>
+        <span class="competition">MATCH COMPLETED</span>
+        <h2 id="victoryTitle">Riverside Strikers Won!</h2>
+        <p class="victory-margin" id="victoryMargin">by 24 runs</p>
+        
+        <div class="potm-highlight panel" id="victoryPotmCard">
+          <small class="award">⭐ PLAYER OF THE MATCH</small>
+          <h3 id="victoryPotmName">Arjun Mehta</h3>
+          <p id="victoryPotmStat">68 runs off 43 balls (7x4, 2x6)</p>
+        </div>
+
+        <div class="victory-actions">
+          <button class="btn btn-primary" id="viewFullScorecardBtn">View Scorecard</button>
+          <button class="btn btn-outline" id="viewPointsTableBtn">View Points Table</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="toast" role="status"></div>
+
+    <script src="app.js?v=14"></script>
+    <script>
+      // Register Service Worker with immediate update check
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js').then((reg) => {
+            reg.update();
+            console.log('ScoreWizz Service Worker registered & updated:', reg.scope);
+          }).catch((err) => {
+            console.log('Service Worker registration failed:', err);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

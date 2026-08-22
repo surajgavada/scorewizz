@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f2038" />
+      <stop offset="100%" stop-color="#060c18" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#ed6a4e" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" />
+  <circle cx="256" cy="256" r="210" stroke="#1e3454" stroke-width="6" fill="none" stroke-dasharray="10 15" />
+  
+  <!-- Cricket Wickets / Stumps -->
+  <g fill="url(#accentGrad)">
+    <rect x="200" y="170" width="16" height="200" rx="8" />
+    <rect x="248" y="150" width="16" height="220" rx="8" />
+    <rect x="296" y="170" width="16" height="200" rx="8" />
+    <!-- Bails -->
+    <rect x="190" y="156" width="60" height="12" rx="6" />
+    <rect x="262" y="156" width="60" height="12" rx="6" />
+  </g>
+  
+  <!-- Cricket Ball -->
+  <circle cx="360" cy="320" r="42" fill="#ef4444" stroke="#ffffff" stroke-width="4" />
+  <path d="M 330 320 Q 360 300 390 320" stroke="#ffffff" stroke-width="3" fill="none" stroke-dasharray="4 3" />
+  
+  <!-- Trophy Star Accent -->
+  <path d="M 256 80 L 264 102 L 286 102 L 268 116 L 275 138 L 256 124 L 237 138 L 244 116 L 226 102 L 248 102 Z" fill="#fbbf24" />
+</svg>
