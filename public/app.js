@@ -151,6 +151,7 @@ function saveToLocalStorage(immediateTournament = false) {
       localStorage.setItem('scorewizz_active_match_v4', JSON.stringify(appState.activeMatch));
     }
     if (appState.tournament) {
+      saveTournamentToDirectory(appState.tournament);
       if (immediateTournament) {
         clearTimeout(_saveTournamentDebounceTimer);
         localStorage.setItem('scorewizz_tournament_v4', JSON.stringify(appState.tournament));
@@ -2919,6 +2920,24 @@ function setupEventListeners() {
       }
     };
   }
+
+  // All Tournaments View controls
+  const allTourCreateBtn = document.querySelector('#allTournamentsCreateBtn');
+  if (allTourCreateBtn) allTourCreateBtn.onclick = () => openTournamentWizard();
+
+  document.querySelectorAll('[data-tour-filter]').forEach((btn) => {
+    btn.onclick = () => {
+      document.querySelectorAll('[data-tour-filter]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      appState.tournamentFilter = btn.dataset.tourFilter;
+      renderAllTournamentsView();
+    };
+  });
+
+  const searchTourInput = document.querySelector('#searchTournamentInput');
+  if (searchTourInput) {
+    searchTourInput.oninput = () => renderAllTournamentsView();
+  }
 }
 
 function switchView(viewName) {
@@ -2938,7 +2957,8 @@ function switchView(viewName) {
     fixtures: 'Schedule & Fixtures',
     teams: 'Teams & Player Cards',
     leaderboards: 'Tournament Leaderboards',
-    summary: 'Match Summary & Awards'
+    summary: 'Match Summary & Awards',
+    allTournaments: 'All Tournaments & Directory'
   };
   const pTitle = document.querySelector('#pageTitle');
   if (pTitle) pTitle.textContent = titles[viewName] || 'ScoreWizz';
@@ -2955,6 +2975,7 @@ function renderCurrentView() {
   else if (v === 'teams') renderTeamsView();
   else if (v === 'leaderboards') renderLeaderboardsView();
   else if (v === 'summary') renderSummaryView();
+  else if (v === 'allTournaments') renderAllTournamentsView();
 
   if (appState.tournament) {
     const badge = document.querySelector('#sidebarTournamentName');
@@ -4187,4 +4208,271 @@ Generated offline with ScoreWizz Cricket Centre
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast('Scorecard exported!');
+}
+
+// ----------------------------------------------------
+// TOURNAMENT DIRECTORY & MULTI-TOURNAMENT ENGINE
+// ----------------------------------------------------
+
+function getAllTournamentsList() {
+  let list = [];
+  try {
+    const raw = localStorage.getItem('scorewizz_all_tournaments_v4');
+    if (raw) list = JSON.parse(raw);
+  } catch (e) {
+    list = [];
+  }
+
+  // Ensure current active tournament is included
+  if (appState.tournament && appState.tournament.id) {
+    const idx = list.findIndex((t) => t.id === appState.tournament.id);
+    if (idx >= 0) {
+      list[idx] = appState.tournament;
+    } else {
+      list.unshift(appState.tournament);
+    }
+  }
+
+  return list;
+}
+
+function saveTournamentToDirectory(tour) {
+  if (!tour || !tour.id) return;
+  try {
+    let list = [];
+    const raw = localStorage.getItem('scorewizz_all_tournaments_v4');
+    if (raw) list = JSON.parse(raw);
+    const idx = list.findIndex((t) => t.id === tour.id);
+    if (idx >= 0) {
+      list[idx] = tour;
+    } else {
+      list.unshift(tour);
+    }
+    localStorage.setItem('scorewizz_all_tournaments_v4', JSON.stringify(list));
+  } catch (e) {
+    console.error('saveTournamentToDirectory error:', e);
+  }
+}
+
+function getTournamentStatus(tour) {
+  if (!tour) return 'running';
+  if (tour.status === 'completed') return 'completed';
+  const fixtures = tour.fixtures || [];
+  if (fixtures.length === 0) return 'running';
+  const completedCount = fixtures.filter((f) => f.status === 'completed' || f.is_completed).length;
+  if (completedCount >= fixtures.length && fixtures.length > 0) return 'completed';
+  return 'running';
+}
+
+function getTournamentChampion(tour) {
+  if (!tour) return null;
+  if (tour.schedule_mode === 'knockout') {
+    const fixtures = tour.fixtures || [];
+    const finalMatch = fixtures.slice().reverse().find((f) => (f.status === 'completed' || f.is_completed) && f.winner_team_id);
+    if (finalMatch) {
+      const winTeam = tour.teams?.find((t) => t.id === finalMatch.winner_team_id);
+      if (winTeam) return winTeam.name;
+    }
+  }
+  // Points table leader
+  if (tour.points_table && tour.points_table.length > 0) {
+    const sorted = [...tour.points_table].sort((a, b) => (b.points - a.points) || (b.net_run_rate - a.net_run_rate));
+    const topTeam = tour.teams?.find((t) => t.id === sorted[0].team_id) || { name: sorted[0].team_name };
+    return topTeam.name || sorted[0].team_name;
+  }
+  return null;
+}
+
+function setActiveTournament(tourId) {
+  const list = getAllTournamentsList();
+  const target = list.find((t) => t.id === tourId);
+  if (!target) return;
+
+  appState.tournament = target;
+  saveToLocalStorage(true);
+
+  // Set active match to first unplayed or first fixture
+  const unplayed = (target.fixtures || []).find((f) => f.status !== 'completed' && !f.is_completed);
+  if (unplayed) {
+    initMatchFromFixture(unplayed);
+  } else if (target.fixtures && target.fixtures.length > 0) {
+    initMatchFromFixture(target.fixtures[0]);
+  }
+
+  renderAllViews();
+  switchView('scoreboard');
+  showToast(`Active tournament set to '${target.name}'`);
+}
+
+async function deleteTournamentById(tourId) {
+  const list = getAllTournamentsList();
+  const target = list.find((t) => t.id === tourId);
+  const name = target?.name || 'this tournament';
+
+  if (!confirm(`Are you sure you want to delete '${name}'? This cannot be undone.`)) {
+    return;
+  }
+
+  const updatedList = list.filter((t) => t.id !== tourId);
+  localStorage.setItem('scorewizz_all_tournaments_v4', JSON.stringify(updatedList));
+
+  apiFetch(`/api/tournaments/${tourId}`, 'DELETE');
+
+  // If deleted the active tournament, switch to another or reset default
+  if (appState.tournament?.id === tourId) {
+    if (updatedList.length > 0) {
+      appState.tournament = updatedList[0];
+      saveToLocalStorage(true);
+      if (appState.tournament.fixtures?.[0]) initMatchFromFixture(appState.tournament.fixtures[0]);
+    } else {
+      createDefaultTournament();
+    }
+  }
+
+  renderAllViews();
+  renderAllTournamentsView();
+  showToast(`Deleted tournament '${name}'`);
+}
+
+function renderAllTournamentsView() {
+  const container = document.querySelector('#allTournamentsContainer');
+  if (!container) return;
+
+  const tournaments = getAllTournamentsList();
+  const filter = appState.tournamentFilter || 'all';
+  const searchQuery = (document.querySelector('#searchTournamentInput')?.value || '').toLowerCase().trim();
+
+  // Compute counts
+  let runningCount = 0;
+  let completedCount = 0;
+
+  const enrichedTournaments = tournaments.map((tour) => {
+    const status = getTournamentStatus(tour);
+    const totalFixtures = tour.fixtures?.length || 0;
+    const completedFixtures = (tour.fixtures || []).filter((f) => f.status === 'completed' || f.is_completed).length;
+    const champion = status === 'completed' ? getTournamentChampion(tour) : null;
+    const isActive = tour.id === appState.tournament?.id;
+
+    if (status === 'completed') completedCount++;
+    else runningCount++;
+
+    return {
+      ...tour,
+      computedStatus: status,
+      totalFixtures,
+      completedFixtures,
+      champion,
+      isActive
+    };
+  });
+
+  // Update Stats overview
+  const statTotal = document.querySelector('#statTotalTournaments');
+  const statRunning = document.querySelector('#statRunningTournaments');
+  const statCompleted = document.querySelector('#statCompletedTournaments');
+  if (statTotal) statTotal.textContent = enrichedTournaments.length;
+  if (statRunning) statRunning.textContent = runningCount;
+  if (statCompleted) statCompleted.textContent = completedCount;
+
+  // Update filter tab counts
+  const cAll = document.querySelector('#countTourAll');
+  const cRunning = document.querySelector('#countTourRunning');
+  const cCompleted = document.querySelector('#countTourCompleted');
+  if (cAll) cAll.textContent = enrichedTournaments.length;
+  if (cRunning) cRunning.textContent = runningCount;
+  if (cCompleted) cCompleted.textContent = completedCount;
+
+  // Filter list
+  let displayed = enrichedTournaments.filter((t) => {
+    if (filter === 'running' && t.computedStatus !== 'running') return false;
+    if (filter === 'completed' && t.computedStatus !== 'completed') return false;
+    if (searchQuery && !t.name.toLowerCase().includes(searchQuery)) return false;
+    return true;
+  });
+
+  if (displayed.length === 0) {
+    container.innerHTML = `
+      <div class="panel" style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
+        <h3 style="color: var(--ink); margin-bottom: 8px;">No tournaments found</h3>
+        <p class="muted" style="margin-bottom: 18px;">${searchQuery ? 'No tournaments match your search.' : `No ${filter !== 'all' ? filter : ''} tournaments found in directory.`}</p>
+        <button class="btn btn-primary" onclick="openTournamentWizard()">＋ Create New Tournament</button>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = displayed.map((t) => {
+    const isCompleted = t.computedStatus === 'completed';
+    const percent = t.totalFixtures > 0 ? Math.round((t.completedFixtures / t.totalFixtures) * 100) : 0;
+
+    const teamBadges = (t.teams || []).slice(0, 6).map((tm) => `
+      <span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-full); font-size: 11px; background: var(--bg-card); border: 1px solid var(--line); color: var(--ink);">
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: ${tm.color || 'var(--coral)'};"></span>
+        ${tm.short_name || tm.name}
+      </span>
+    `).join('');
+
+    const moreTeamsCount = (t.teams?.length || 0) > 6 ? `<span class="muted" style="font-size: 11px; align-self: center;">+${t.teams.length - 6} more</span>` : '';
+
+    return `
+      <div class="panel tour-directory-card ${t.isActive ? 'tour-active-card' : ''}" style="display: flex; flex-direction: column; justify-content: space-between; border: 1px solid ${t.isActive ? 'var(--coral)' : 'var(--line)'}; position: relative; transition: all 0.2s ease;">
+        <div>
+          <!-- Header row -->
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px;">
+                <span class="badge" style="background: ${isCompleted ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; color: ${isCompleted ? 'var(--gold)' : '#10b981'}; font-weight: 700; font-size: 10px; padding: 3px 8px; border-radius: var(--radius-full);">
+                  ${isCompleted ? 'COMPLETED' : 'RUNNING'}
+                </span>
+                ${t.isActive ? `<span class="badge" style="background: rgba(237, 106, 78, 0.15); color: var(--coral); font-weight: 700; font-size: 10px; padding: 3px 8px; border-radius: var(--radius-full);">CURRENT ACTIVE</span>` : ''}
+              </div>
+              <h3 style="font-size: 18px; color: var(--ink); margin: 0; line-height: 1.3;">${t.name}</h3>
+              <p class="muted" style="font-size: 12px; margin-top: 2px;">
+                ${t.overs} Overs • ${t.teams?.length || 0} Teams • ${t.format || 'T20 League'}
+              </p>
+            </div>
+          </div>
+
+          <!-- Champion Box if completed -->
+          ${isCompleted && t.champion ? `
+            <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius-sm); padding: 8px 12px; margin: 10px 0;">
+              <small style="color: var(--gold); font-size: 10px; font-weight: 700; text-transform: uppercase;">TOURNAMENT WINNER</small>
+              <div style="font-size: 14px; font-weight: 700; color: var(--ink);">${t.champion}</div>
+            </div>
+          ` : ''}
+
+          <!-- Matches Progress -->
+          <div style="margin: 12px 0;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+              <span class="muted">Matches Progress</span>
+              <strong style="color: var(--ink);">${t.completedFixtures} / ${t.totalFixtures} (${percent}%)</strong>
+            </div>
+            <div class="progress" style="height: 6px; background: var(--bg-card-alt); border-radius: 99px; overflow: hidden;">
+              <i style="display: block; height: 100%; width: ${percent}%; background: ${isCompleted ? 'var(--gold)' : 'var(--coral)'}; border-radius: 99px;"></i>
+            </div>
+          </div>
+
+          <!-- Team Chips -->
+          <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px;">
+            ${teamBadges}
+            ${moreTeamsCount}
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 10px; flex-wrap: wrap;">
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            ${t.isActive ? `
+              <button class="btn btn-sm btn-primary" style="opacity: 0.8; cursor: default;">Active Now</button>
+            ` : `
+              <button class="btn btn-sm btn-primary" onclick="setActiveTournament('${t.id}')">Open / Set Active</button>
+            `}
+            <button class="btn btn-sm btn-outline" onclick="setActiveTournament('${t.id}'); switchView('fixtures');">Matches</button>
+            <button class="btn btn-sm btn-outline" onclick="setActiveTournament('${t.id}'); switchView('pointsTable');">Points</button>
+          </div>
+          <button class="btn btn-sm btn-ghost" onclick="deleteTournamentById('${t.id}')" style="color: var(--red); font-size: 12px;" title="Delete Tournament">Delete</button>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
