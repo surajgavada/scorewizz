@@ -1488,6 +1488,18 @@ function renderScoreboardView() {
   const ballsLeftDisp = document.querySelector('#ballsLeftDisplay');
   if (ballsLeftDisp) ballsLeftDisp.textContent = `${ballsLeft} balls remaining`;
 
+  // Bowling team on right side
+  const bowlName = document.querySelector('#bowlingTeamName');
+  if (bowlName) bowlName.textContent = inn.bowling_team_name;
+  const bowlBadge = document.querySelector('#bowlingTeamBadge');
+  const bowlShort = (match.current_innings === 1 ? match.team2.short_name : match.team1.short_name) || inn.bowling_team_name.substring(0, 3).toUpperCase();
+  if (bowlBadge) bowlBadge.textContent = bowlShort;
+  const bowlOvers = document.querySelector('#bowlingOversDisplay');
+  if (bowlOvers) bowlOvers.innerHTML = `${oversStr} <small>/ ${match.overs_limit} ov</small>`;
+  const bowlWkts = document.querySelector('#bowlingWicketsDisplay');
+  if (bowlWkts) bowlWkts.textContent = `${inn.wickets} wicket${inn.wickets === 1 ? '' : 's'} taken`;
+
+  // Center Run Rate & Target
   const oversDecimal = Math.floor(inn.balls / 6) + (inn.balls % 6) / 6;
   const crr = oversDecimal > 0 ? (inn.runs / oversDecimal).toFixed(2) : '0.00';
   const rrDisp = document.querySelector('#runRateDisplay');
@@ -1497,12 +1509,12 @@ function renderScoreboardView() {
   const rrrBox = document.querySelector('#requiredRRBox');
   if (match.current_innings === 2 && match.target) {
     if (targetCard) targetCard.style.display = 'block';
-    if (rrrBox) rrrBox.style.display = 'block';
+    if (rrrBox) rrrBox.style.display = 'flex';
     const runsNeeded = Math.max(0, match.target - inn.runs);
     const trgRuns = document.querySelector('#targetRunsDisplay');
     if (trgRuns) trgRuns.textContent = match.target;
     const trgSub = document.querySelector('#targetSubDisplay');
-    if (trgSub) trgSub.textContent = `Need ${runsNeeded} runs from ${ballsLeft} balls`;
+    if (trgSub) trgSub.textContent = `Need ${runsNeeded} runs in ${ballsLeft} balls`;
     const rrr = ballsLeft > 0 ? ((runsNeeded / ballsLeft) * 6).toFixed(2) : '0.00';
     const reqRRDisp = document.querySelector('#reqRunRateDisplay');
     if (reqRRDisp) reqRRDisp.textContent = rrr;
@@ -1591,11 +1603,12 @@ function renderScoreboardView() {
 
   const timelineRow = document.querySelector('#timelineRow');
   if (timelineRow) {
-    if (inn.timeline_balls.length === 0) {
-      timelineRow.innerHTML = '<span class="muted" style="padding: 10px;">Match ready to begin. Score the first ball above!</span>';
+    const currentInnBalls = inn.timeline_balls || [];
+    if (currentInnBalls.length === 0) {
+      timelineRow.innerHTML = `<span class="muted" style="padding: 10px;">${match.current_innings === 1 ? '1st Innings' : '2nd Innings'} ready. Score the first ball above!</span>`;
     } else {
       timelineRow.innerHTML = '';
-      inn.timeline_balls.forEach((ball) => {
+      currentInnBalls.forEach((ball) => {
         const item = document.createElement('div');
         item.className = 'timeline-item';
         item.innerHTML = `<small>${ball.delivery}</small><span class="timeline-ball ${ball.className || ''}">${ball.text}</span>`;
@@ -2623,19 +2636,20 @@ function setupEventListeners() {
   const themeBtn = document.querySelector('#themeToggleBtn');
   if (themeBtn) {
     const savedTheme = localStorage.getItem('scorewizz_theme');
-    if (savedTheme === 'light') {
-      document.body.classList.add('light-theme');
-      themeBtn.textContent = 'Dark';
-    } else {
+    if (savedTheme === 'dark') {
+      document.body.classList.add('dark-theme');
       themeBtn.textContent = 'Light';
+    } else {
+      document.body.classList.remove('dark-theme');
+      themeBtn.textContent = 'Dark';
     }
 
     themeBtn.onclick = () => {
-      document.body.classList.toggle('light-theme');
-      const isLight = document.body.classList.contains('light-theme');
-      themeBtn.textContent = isLight ? 'Dark' : 'Light';
-      localStorage.setItem('scorewizz_theme', isLight ? 'light' : 'dark');
-      showToast(isLight ? 'Light Theme activated' : 'Dark Theme activated');
+      document.body.classList.toggle('dark-theme');
+      const isDark = document.body.classList.contains('dark-theme');
+      themeBtn.textContent = isDark ? 'Light' : 'Dark';
+      localStorage.setItem('scorewizz_theme', isDark ? 'dark' : 'light');
+      showToast(isDark ? 'Dark Theme activated' : 'Light Theme activated');
     };
   }
 
