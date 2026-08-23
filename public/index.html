@@ -8,7 +8,10 @@
     <title>ScoreWizz | Cricket Tournament & Match Centre</title>
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
     <link rel="manifest" href="manifest.json" />
-    <link rel="stylesheet" href="styles.css?v=14" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css?v=29" />
     <script>
       // Clear stale caches so user always gets the latest code
       if ('serviceWorker' in navigator) {
@@ -23,19 +26,9 @@
       <!-- SIDEBAR NAVIGATION -->
       <aside class="sidebar">
         <div class="brand">
-          <span class="brand-mark">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path d="M12 2L15 8H9L12 2zM4 9h16v2H4V9zm2 4h12v9H6v-9zm2 2v5h2v-5H8zm6 0v5h2v-5h-2z" />
-            </svg>
-          </span>
           <div class="brand-text">
             <strong>ScoreWizz</strong>
-            <small>Cricket Centre</small>
           </div>
-        </div>
-
-        <div class="offline-pill" id="offlineStatusPill">
-          <span class="pulse-dot"></span> <span id="offlineStatusText">Offline Ready</span>
         </div>
 
         <div class="tournament-badge-mini" id="sidebarTournamentBadge">
@@ -45,25 +38,28 @@
 
         <nav class="main-nav" aria-label="Main navigation">
           <button class="nav-item active" data-view="scoreboard">
-            <span class="icon">🏟️</span> Scoreboard
+            <span class="icon"></span> Scoreboard
           </button>
           <button class="nav-item" data-view="scorecard">
-            <span class="icon">📋</span> Full Scorecard
+            <span class="icon"></span> Full Scorecard
           </button>
           <button class="nav-item" data-view="pointsTable">
-            <span class="icon">🏆</span> Points Table
+            <span class="icon"></span> Points Table
           </button>
           <button class="nav-item" data-view="fixtures">
-            <span class="icon">🗓️</span> Schedule & Matches
+            <span class="icon"></span> Schedule & Matches
           </button>
           <button class="nav-item" data-view="teams">
-            <span class="icon">👥</span> Teams & Players
+            <span class="icon"></span> Teams & Players
           </button>
           <button class="nav-item" data-view="leaderboards">
-            <span class="icon">🎖️</span> Leaderboards
+            <span class="icon"></span> Leaderboards
           </button>
           <button class="nav-item" data-view="summary">
-            <span class="icon">📈</span> Match Summary
+            <span class="icon"></span> Match Summary
+          </button>
+          <button class="nav-item" data-view="allTournaments" id="navAllTournamentsBtn">
+            <span class="icon"></span> All Tournaments
           </button>
         </nav>
 
@@ -72,10 +68,10 @@
             <span>＋</span> New Tournament
           </button>
           <button class="btn btn-secondary btn-block quick-match-btn" id="openQuickMatchBtn">
-            <span>⚡</span> Quick Match
+            <span></span> Quick Match
           </button>
           <p class="saved-note">
-            💾 Autosaved offline on this device.
+            Autosaved offline on this device.
           </p>
         </div>
       </aside>
@@ -90,10 +86,9 @@
           </div>
           <div class="top-actions">
             <span class="live-status" id="liveStatusBadge"><i></i> <span id="liveStatusText">LIVE MATCH</span></span>
-            <button class="btn btn-sm btn-ghost" id="swapStrikeBtn" title="Swap strike between batsmen">⇄ Swap Strike</button>
-            <button class="btn btn-sm btn-ghost" id="exportMatchBtn" title="Export Match Scorecard">📥 Export</button>
+            <button class="btn btn-sm btn-ghost" id="exportMatchBtn" title="Export Match Scorecard">Export</button>
             <button class="icon-button" id="resetMatchBtn" title="Reset Current Match">↻</button>
-            <button class="theme-toggle" id="themeToggleBtn" title="Toggle Theme">🌙</button>
+            <button class="theme-toggle" id="themeToggleBtn" title="Toggle Theme">Theme</button>
           </div>
         </header>
 
@@ -107,7 +102,7 @@
             </div>
             <div class="match-heading-right">
               <span class="innings-tag" id="inningsBadge">1st Innings</span>
-              <button class="btn btn-sm btn-outline" id="switchInningsBtn">End Innings ➔</button>
+              <button class="btn btn-sm btn-outline" id="switchInningsBtn">End Innings</button>
             </div>
           </div>
 
@@ -144,11 +139,11 @@
             <section class="panel batters-panel">
               <div class="panel-title">
                 <div>
-                  <h3>🏏 At the crease</h3>
+                  <h3>At the crease</h3>
                   <span class="live-label" id="creaseLabel">● ON STRIKE: <span id="onStrikeName">Striker</span></span>
                 </div>
                 <div class="top-actions">
-                  <button class="btn btn-xs btn-outline" id="selectBatsmenBtn">🏏 Select Batsmen</button>
+                  <button class="btn btn-xs btn-outline" id="selectBatsmenBtn">Select Batsmen</button>
                   <button class="btn btn-xs btn-ghost" id="swapStrikeCreaseBtn" title="Swap Strike">⇄ Swap Strike</button>
                 </div>
               </div>
@@ -196,7 +191,7 @@
             <!-- CURRENT BOWLER -->
             <section class="panel bowler-panel">
               <div class="panel-title">
-                <h3>🎯 Bowling</h3>
+                <h3>Bowling</h3>
                 <button class="btn btn-xs btn-outline" id="changeBowlerBtn">Change Bowler</button>
               </div>
               <div class="bowler-card">
@@ -224,11 +219,79 @@
             </section>
           </div>
 
+          <!-- COMPLETED MATCH SUMMARY BLOCK (Appears on Scoreboard when Match is Completed) -->
+          <section id="scoreboardCompletedSummary" class="panel scoreboard-summary-panel mb-3" style="display: none;">
+            <div class="summary-hero-box text-center">
+              <span class="competition" style="color: var(--gold); font-size: 11px;">MATCH CONCLUDED</span>
+              <h2 id="sbSummaryWinnerTitle" style="font-size: 24px; margin: 4px 0 2px 0; color: var(--ink);">Riverside Strikers Won by 24 runs</h2>
+              <p id="sbSummaryScoresRecap" class="muted" style="font-size: 13px; margin-bottom: 14px;">Innings 1: 164/5 (20 ov) • Innings 2: 140/9 (20 ov)</p>
+            </div>
+
+            <!-- Awards Grid on Scoreboard -->
+            <div class="sb-awards-grid">
+              <!-- Player of the Match -->
+              <div class="sb-award-card potm">
+                <small class="award" style="color: var(--gold);">PLAYER OF THE MATCH</small>
+                <div class="sb-player-row">
+                  <div class="player-initials gold" id="sbSummaryPotmInitials">AM</div>
+                  <div>
+                    <h4 id="sbSummaryPotmName">Arjun Mehta</h4>
+                    <p id="sbSummaryPotmStats" class="muted">68 runs (43b), 1 wkt</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Best Batsman -->
+              <div class="sb-award-card">
+                <small class="award" style="color: var(--gold);">BEST BATSMAN</small>
+                <div class="sb-player-row">
+                  <div class="player-initials warm" id="sbSummaryBatInitials">AM</div>
+                  <div>
+                    <h4 id="sbSummaryBatName">Arjun Mehta</h4>
+                    <p id="sbSummaryBatStats" class="muted">68 runs off 43 balls</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Best Bowler -->
+              <div class="sb-award-card">
+                <small class="award" style="color: var(--purple);">BEST BOWLER</small>
+                <div class="sb-player-row">
+                  <div class="player-initials dark" id="sbSummaryBowlInitials">DM</div>
+                  <div>
+                    <h4 id="sbSummaryBowlName">Dev Malhotra</h4>
+                    <p id="sbSummaryBowlStats" class="muted">1/26 (4.0 overs)</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Best Strike Rate -->
+              <div class="sb-award-card">
+                <small class="award" style="color: #06b6d4;">BEST STRIKE RATE</small>
+                <div class="sb-player-row">
+                  <div class="player-initials cyan-bg" id="sbSummarySRInitials">RK</div>
+                  <div>
+                    <h4 id="sbSummarySRName">Rohan Kapoor</h4>
+                    <p id="sbSummarySRStats" class="muted">165.4 SR</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Match Actions -->
+            <div class="sb-summary-actions">
+              <button class="btn btn-success" id="sbStartNextMatchBtn">Start Next Match</button>
+              <button class="btn btn-primary" id="sbViewScorecardBtn">View Full Scorecard</button>
+              <button class="btn btn-outline" id="sbViewPointsTableBtn">View Points Table</button>
+              <button class="btn btn-ghost" id="sbExportScorecardBtn">Export Scorecard (TXT)</button>
+            </div>
+          </section>
+
           <!-- SCORING CONTROLS PAD -->
-          <section class="panel scoring-panel">
+          <section class="panel scoring-panel" id="scoringPanel">
             <div class="panel-title">
               <div>
-                <h3> Quick Scoring Controls</h3>
+                <h3>Quick Scoring Controls</h3>
                 <p class="muted">Click runs or extras to score. Automatic strike rotation and bowler change handled.</p>
               </div>
               <div class="panel-actions">
@@ -250,15 +313,16 @@
               <button data-extra="LB" class="extra-button">LB<small>LEG BYE</small></button>
               <button data-extra="B" class="extra-button">B<small>BYE</small></button>
               
-              <!-- Wicket -->
+              <!-- Wicket & Run Out -->
               <button data-wicket="true" class="wicket-button">W<small>WICKET</small></button>
+              <button data-runout="true" class="wicket-button runout-button" style="background: rgba(249, 115, 22, 0.15); color: #f97316; border-color: rgba(249, 115, 22, 0.35);">RO<small>RUN OUT</small></button>
             </div>
           </section>
 
           <!-- BALL BY BALL TIMELINE -->
-          <section class="timeline panel">
+          <section class="timeline panel" id="scoreboardTimelinePanel">
             <div class="panel-title">
-              <h3>📜 Recent Deliveries Timeline</h3>
+              <h3>Recent Deliveries Timeline</h3>
               <button class="link-button" data-view-link="scorecard">View full scorecard →</button>
             </div>
             <div class="timeline-row" id="timelineRow">
@@ -425,7 +489,7 @@
           </section>
 
           <div class="nrr-info-card">
-            <h4>💡 How Net Run Rate (NRR) is calculated:</h4>
+            <h4>How Net Run Rate (NRR) is calculated:</h4>
             <p>
               <code>NRR = (Total Runs Scored / Total Legal Overs Faced) - (Total Runs Conceded / Total Legal Overs Bowled)</code>
             </p>
@@ -443,8 +507,8 @@
               </div>
               <div class="top-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                 <div id="fixturesViewToggleGroup" style="display: none; gap: 4px;">
-                  <button class="btn btn-sm btn-primary" id="fixturesListToggleBtn">📋 List View</button>
-                  <button class="btn btn-sm btn-outline" id="fixturesBracketToggleBtn">🌳 Schedule Graph / Bracket</button>
+                  <button class="btn btn-sm btn-primary" id="fixturesListToggleBtn">List View</button>
+                  <button class="btn btn-sm btn-outline" id="fixturesBracketToggleBtn">Schedule Graph / Bracket</button>
                 </div>
                 <button class="btn btn-outline btn-sm" id="openAddFixtureModalBtn">＋ Add Match</button>
               </div>
@@ -482,7 +546,7 @@
               <p class="muted" id="teamBigInfo">15 Players in Squad • 0 Matches Played</p>
             </div>
             <div>
-              <button class="btn btn-outline btn-sm" id="openEditSquadModalBtn">✏️ Edit Team Squad</button>
+              <button class="btn btn-outline btn-sm" id="openEditSquadModalBtn">Edit Team Squad</button>
             </div>
           </div>
 
@@ -491,19 +555,55 @@
           </div>
         </section>
 
-        <!-- VIEW 6: LEADERBOARDS (ORANGE/PURPLE CAP/MVP) -->
+        <!-- VIEW 6: LEADERBOARDS (MAN OF THE SERIES, ORANGE/PURPLE CAP, STRIKE RATE, ECONOMY) -->
         <section id="leaderboardsView" class="view">
           <div class="section-heading">
             <span class="competition">TOURNAMENT STATS & AWARDS</span>
             <h2>Tournament Leaderboards</h2>
-            <p class="muted">Top performers across all tournament matches.</p>
+            <p class="muted">Top performers and tournament award winners across all matches.</p>
+          </div>
+
+          <!-- Featured: Man of the Series / Tournament MVP Banner -->
+          <div class="mots-hero-banner panel mb-4" id="motsHeroBanner">
+            <div class="mots-hero-left">
+              <span class="cap-badge mots">TOURNAMENT MVP & MAN OF THE SERIES</span>
+              <div class="mots-player-row">
+                <div class="player-initials gold" id="motsPlayerInitials">AM</div>
+                <div>
+                  <h3 id="motsPlayerName">Arjun Mehta</h3>
+                  <p class="muted" id="motsPlayerTeam">Riverside Strikers • All-Rounder</p>
+                </div>
+              </div>
+            </div>
+            <div class="mots-hero-stats">
+              <div class="mots-stat-pill">
+                <span class="stat-lbl">RUNS</span>
+                <strong id="motsStatRuns">0</strong>
+              </div>
+              <div class="mots-stat-pill">
+                <span class="stat-lbl">WICKETS</span>
+                <strong id="motsStatWickets">0</strong>
+              </div>
+              <div class="mots-stat-pill">
+                <span class="stat-lbl">BAT SR</span>
+                <strong id="motsStatSR">0.0</strong>
+              </div>
+              <div class="mots-stat-pill">
+                <span class="stat-lbl">BOWL ECON</span>
+                <strong id="motsStatEcon">0.00</strong>
+              </div>
+              <div class="mots-stat-pill highlight">
+                <span class="stat-lbl">IMPACT PTS</span>
+                <strong id="motsStatImpact">0</strong>
+              </div>
+            </div>
           </div>
 
           <div class="caps-grid">
-            <!-- Orange Cap (Top Batsman) -->
+            <!-- 1. Orange Cap (Top Runs) -->
             <div class="cap-card orange-cap-card panel">
               <div class="cap-header">
-                <span class="cap-badge orange">👑 ORANGE CAP</span>
+                <span class="cap-badge orange">ORANGE CAP</span>
                 <h3>Leading Run Scorer</h3>
               </div>
               <div class="cap-winner" id="orangeCapWinner">
@@ -527,10 +627,10 @@
               </div>
             </div>
 
-            <!-- Purple Cap (Top Bowler) -->
+            <!-- 2. Purple Cap (Most Wickets) -->
             <div class="cap-card purple-cap-card panel">
               <div class="cap-header">
-                <span class="cap-badge purple">🎯 PURPLE CAP</span>
+                <span class="cap-badge purple">PURPLE CAP</span>
                 <h3>Leading Wicket Taker</h3>
               </div>
               <div class="cap-winner" id="purpleCapWinner">
@@ -553,6 +653,114 @@
                 </table>
               </div>
             </div>
+
+            <!-- 3. Most Sixes (Maximums) -->
+            <div class="cap-card sixes-card panel">
+              <div class="cap-header">
+                <span class="cap-badge crimson">MOST SIXES</span>
+                <h3>Maximum Sixes Hit</h3>
+              </div>
+              <div class="cap-winner" id="mostSixesWinner">
+                <div class="player-initials crimson-bg" id="mostSixesInitials">AM</div>
+                <div>
+                  <h4 id="mostSixesName">Arjun Mehta</h4>
+                  <small id="mostSixesTeam">Riverside Strikers</small>
+                </div>
+                <div class="cap-stat">
+                  <strong id="mostSixesStat">0</strong>
+                  <small>SIXES (6s)</small>
+                </div>
+              </div>
+              <div class="cap-table-wrap">
+                <table class="mini-table" id="mostSixesTable">
+                  <thead>
+                    <tr><th>Player</th><th>Team</th><th class="text-right">6s</th><th class="text-right">Runs</th></tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 4. Most Fours (Boundaries) -->
+            <div class="cap-card fours-card panel">
+              <div class="cap-header">
+                <span class="cap-badge amber">MOST FOURS</span>
+                <h3>Maximum Boundaries Hit</h3>
+              </div>
+              <div class="cap-winner" id="mostFoursWinner">
+                <div class="player-initials amber-bg" id="mostFoursInitials">RK</div>
+                <div>
+                  <h4 id="mostFoursName">Rohan Kapoor</h4>
+                  <small id="mostFoursTeam">Riverside Strikers</small>
+                </div>
+                <div class="cap-stat">
+                  <strong id="mostFoursStat">0</strong>
+                  <small>FOURS (4s)</small>
+                </div>
+              </div>
+              <div class="cap-table-wrap">
+                <table class="mini-table" id="mostFoursTable">
+                  <thead>
+                    <tr><th>Player</th><th>Team</th><th class="text-right">4s</th><th class="text-right">Runs</th></tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 5. Best Batting Strike Rate -->
+            <div class="cap-card strike-rate-card panel">
+              <div class="cap-header">
+                <span class="cap-badge cyan">BEST BATTING STRIKE RATE</span>
+                <h3>Highest Strike Rate</h3>
+              </div>
+              <div class="cap-winner" id="bestSRWinner">
+                <div class="player-initials cyan-bg" id="bestSRInitials">RK</div>
+                <div>
+                  <h4 id="bestSRName">Rohan Kapoor</h4>
+                  <small id="bestSRTeam">Riverside Strikers</small>
+                </div>
+                <div class="cap-stat">
+                  <strong id="bestSRStat">0.0</strong>
+                  <small>STRIKE RATE</small>
+                </div>
+              </div>
+              <div class="cap-table-wrap">
+                <table class="mini-table" id="bestSRTable">
+                  <thead>
+                    <tr><th>Player</th><th>Team</th><th class="text-right">SR</th><th class="text-right">Runs (B)</th></tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 6. Best Bowling Economy -->
+            <div class="cap-card economy-card panel">
+              <div class="cap-header">
+                <span class="cap-badge green">BEST BOWLING ECONOMY</span>
+                <h3>Lowest Economy Rate</h3>
+              </div>
+              <div class="cap-winner" id="bestEconWinner">
+                <div class="player-initials green-bg" id="bestEconInitials">VR</div>
+                <div>
+                  <h4 id="bestEconName">Vikram Rao</h4>
+                  <small id="bestEconTeam">North Stars</small>
+                </div>
+                <div class="cap-stat">
+                  <strong id="bestEconStat">0.00</strong>
+                  <small>ECON (RPO)</small>
+                </div>
+              </div>
+              <div class="cap-table-wrap">
+                <table class="mini-table" id="bestEconTable">
+                  <thead>
+                    <tr><th>Player</th><th>Team</th><th class="text-right">Econ</th><th class="text-right">Wkts (Ov)</th></tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -565,7 +773,7 @@
           </div>
 
           <div class="summary-result-banner panel" id="summaryResultBanner">
-            <span class="trophy-icon">🏆</span>
+            <span class="trophy-icon"></span>
             <div>
               <h3 id="summaryResultTitle">Match In Progress</h3>
               <p class="muted" id="summaryResultDetail">Current match is live on the scoreboard.</p>
@@ -575,7 +783,7 @@
           <div class="awards-grid" id="awardsGrid">
             <!-- Player of the Match -->
             <article class="player-card featured">
-              <span class="award">⭐ MAN OF THE MATCH</span>
+              <span class="award">PLAYER OF THE MATCH</span>
               <div class="player-initials warm" id="potmInitials">AM</div>
               <h3 id="potmName">Arjun Mehta</h3>
               <p><span id="potmTeam">Riverside Strikers</span> • <span id="potmRole">Batter</span></p>
@@ -589,7 +797,7 @@
 
             <!-- Best Batsman -->
             <article class="player-card">
-              <span class="award orange">🏏 BEST BATSMAN</span>
+              <span class="award orange">BEST BATSMAN</span>
               <div class="player-initials" id="bestBatInitials">AM</div>
               <h3 id="bestBatName">Arjun Mehta</h3>
               <p><span id="bestBatTeam">Riverside Strikers</span></p>
@@ -602,7 +810,7 @@
 
             <!-- Best Bowler -->
             <article class="player-card">
-              <span class="award green">🎯 BEST BOWLER</span>
+              <span class="award green">BEST BOWLER</span>
               <div class="player-initials dark" id="bestBowlInitials">DM</div>
               <h3 id="bestBowlName">Dev Malhotra</h3>
               <p><span id="bestBowlTeam">North Stars</span></p>
@@ -610,6 +818,30 @@
               <div class="player-meta" id="bestBowlMeta">
                 <span>6.50 Economy</span>
                 <span>12 Dots</span>
+              </div>
+            </article>
+
+            <!-- Match Best Strike Rate -->
+            <article class="player-card">
+              <span class="award cyan">BEST STRIKE RATE</span>
+              <div class="player-initials cyan-bg" id="matchBestSRInitials">RK</div>
+              <h3 id="matchBestSRName">Rohan Kapoor</h3>
+              <p><span id="matchBestSRTeam">Riverside Strikers</span></p>
+              <strong id="matchBestSRStat">175.0 <small>SR</small></strong>
+              <div class="player-meta" id="matchBestSRMeta">
+                <span>28 runs off 16 balls</span>
+              </div>
+            </article>
+
+            <!-- Match Best Bowling Economy -->
+            <article class="player-card">
+              <span class="award green">BEST BOWLING ECONOMY</span>
+              <div class="player-initials green-bg" id="matchBestEconInitials">VR</div>
+              <h3 id="matchBestEconName">Vikram Rao</h3>
+              <p><span id="matchBestEconTeam">North Stars</span></p>
+              <strong id="matchBestEconStat">5.00 <small>Econ</small></strong>
+              <div class="player-meta" id="matchBestEconMeta">
+                <span>0/15 in 3.0 overs</span>
               </div>
             </article>
           </div>
@@ -631,6 +863,55 @@
             </div>
           </section>
         </section>
+
+        <!-- VIEW 8: ALL TOURNAMENTS (Running, Completed, All) -->
+        <section id="allTournamentsView" class="view">
+          <div class="panel mb-3">
+            <div class="panel-title" style="flex-wrap: wrap; gap: 12px;">
+              <div>
+                <span class="competition">TOURNAMENT DIRECTORY</span>
+                <h2>All Tournaments</h2>
+                <p class="muted">Browse and switch between active, running, and completed tournaments.</p>
+              </div>
+              <div class="panel-actions">
+                <button class="btn btn-primary" id="allTournamentsCreateBtn">＋ Create New Tournament</button>
+              </div>
+            </div>
+
+            <!-- Stats Overview Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 14px;">
+              <div class="panel" style="padding: 14px 18px; background: var(--bg-card-alt); border: 1px solid var(--line);">
+                <small class="muted" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Total Tournaments</small>
+                <div id="statTotalTournaments" style="font-size: 28px; font-weight: 700; color: var(--ink); font-family: 'Space Grotesk', sans-serif; line-height: 1.2; margin-top: 4px;">0</div>
+              </div>
+              <div class="panel" style="padding: 14px 18px; background: var(--bg-card-alt); border: 1px solid var(--line);">
+                <small style="color: #10b981; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Running / Active</small>
+                <div id="statRunningTournaments" style="font-size: 28px; font-weight: 700; color: #10b981; font-family: 'Space Grotesk', sans-serif; line-height: 1.2; margin-top: 4px;">0</div>
+              </div>
+              <div class="panel" style="padding: 14px 18px; background: var(--bg-card-alt); border: 1px solid var(--line);">
+                <small style="color: var(--gold); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Completed</small>
+                <div id="statCompletedTournaments" style="font-size: 28px; font-weight: 700; color: var(--gold); font-family: 'Space Grotesk', sans-serif; line-height: 1.2; margin-top: 4px;">0</div>
+              </div>
+            </div>
+
+            <!-- Filter Tabs & Search Bar -->
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 18px; border-top: 1px solid var(--line); padding-top: 16px;">
+              <div style="display: flex; gap: 8px;" id="tourFilterButtons">
+                <button class="tab-btn active" id="filterTourAllBtn" data-tour-filter="all">All (<span id="countTourAll">0</span>)</button>
+                <button class="tab-btn" id="filterTourRunningBtn" data-tour-filter="running">Running (<span id="countTourRunning">0</span>)</button>
+                <button class="tab-btn" id="filterTourCompletedBtn" data-tour-filter="completed">Completed (<span id="countTourCompleted">0</span>)</button>
+              </div>
+              <div style="min-width: 240px; flex: 1; max-width: 360px;">
+                <input type="text" id="searchTournamentInput" class="form-control" placeholder="Search tournament by name..." style="padding: 8px 14px; font-size: 13px;" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Tournaments Grid / Cards Container -->
+          <div id="allTournamentsContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px;">
+            <!-- Rendered dynamically -->
+          </div>
+        </section>
       </main>
     </div>
 
@@ -638,13 +919,16 @@
 
     <!-- 1. TOURNAMENT SETUP WIZARD MODAL -->
     <div class="modal-backdrop" id="tournamentWizardModal">
-      <div class="modal-card modal-lg">
+      <div class="modal-card modal-wizard-full">
         <div class="modal-header">
           <div>
             <span class="competition">STEP-BY-STEP SETUP</span>
-            <h2>🏆 Create Tournament</h2>
+            <h2>Create Tournament</h2>
           </div>
-          <button class="modal-close" id="closeWizardBtn">✕</button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button class="modal-expand-btn" id="toggleWizardFullscreenBtn" title="Toggle Fullscreen / Expanded View">[ ]</button>
+            <button class="modal-close" id="closeWizardBtn" title="Close"></button>
+          </div>
         </div>
 
         <div class="wizard-steps-indicator">
@@ -659,12 +943,12 @@
           <div class="wizard-step active" id="wizardStep1">
             <h3>Tournament Info & Configuration</h3>
             <div class="form-group">
-              <label>🏆 Tournament Name</label>
+              <label>Tournament Name</label>
               <input type="text" id="wizTourName" class="form-control" placeholder="e.g. Premier T20 Cup 2026" value="Premier T20 Championship 2026" />
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label>🏏 Overs Per Match (Enter custom or select)</label>
+                <label>Overs Per Match (Enter custom or select)</label>
                 <input type="number" id="wizTourOvers" class="form-control" min="1" max="100" placeholder="e.g. 20" value="20" />
                 <div style="display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap;">
                   <button type="button" class="btn btn-xs btn-ghost quick-overs-btn" data-overs="5">5 Ov</button>
@@ -675,7 +959,7 @@
                 </div>
               </div>
               <div class="form-group">
-                <label>👥 Number of Teams (Type any number — no limit)</label>
+                <label>Number of Teams (Type any number — no limit)</label>
                 <input type="number" id="wizTourNumTeams" class="form-control" min="2" placeholder="e.g. 4, 8, 12, 16, 20..." value="4" />
                 <div style="display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap;">
                   <button type="button" class="btn btn-xs btn-ghost quick-teams-btn" data-teams="2">2</button>
@@ -695,7 +979,7 @@
           <div class="wizard-step" id="wizardStep2">
             <div class="step-head-row">
               <h3>Configure Teams</h3>
-              <button class="btn btn-xs btn-outline" id="wizQuickFillTeamsBtn">⚡ Quick Fill Defaults</button>
+              <button class="btn btn-xs btn-outline" id="wizQuickFillTeamsBtn">Quick Fill Defaults</button>
             </div>
             <div id="wizTeamsContainer" class="wiz-teams-container">
               <!-- Dynamically generated team input rows -->
@@ -709,7 +993,7 @@
                 <h3>Team Rosters & Squad Setup</h3>
                 <p class="muted">Minimum 11, Maximum 15 players per squad. Designate Captain (C) & Vice-Captain (VC).</p>
               </div>
-              <button class="btn btn-xs btn-outline" id="wizQuickFillPlayersBtn">⚡ Quick Fill All Squads</button>
+              <button class="btn btn-xs btn-outline" id="wizQuickFillPlayersBtn">Quick Fill All Squads</button>
             </div>
             
             <!-- Team Selection Tabs -->
@@ -724,16 +1008,16 @@
                 </div>
                 <div class="squad-actions-top">
                   <button class="btn btn-xs btn-outline" id="wizAddPlayerBtn">＋ Add Player (Max 15)</button>
-                  <button class="btn btn-xs btn-success" id="wizSaveCurrentTeamBtn">💾 Save Team Squad</button>
+                  <button class="btn btn-xs btn-success" id="wizSaveCurrentTeamBtn">Save Team Squad</button>
                 </div>
               </div>
               <div class="form-row mt-3">
                 <div class="form-group mb-0">
-                  <label>👑 Team Captain (C)</label>
+                  <label>Team Captain (C)</label>
                   <select id="wizCaptainSelect" class="form-control"></select>
                 </div>
                 <div class="form-group mb-0">
-                  <label>⭐ Vice-Captain (VC)</label>
+                  <label>Vice-Captain (VC)</label>
                   <select id="wizViceCaptainSelect" class="form-control"></select>
                 </div>
               </div>
@@ -744,7 +1028,7 @@
 
             <div class="squad-bottom-bar mt-3" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card-alt); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--line);">
               <span class="muted" style="font-size: 12px;">Ensure squad has between 11 and 15 players with Captain & VC selected.</span>
-              <button class="btn btn-sm btn-success" id="wizSaveCurrentTeamBottomBtn">💾 Save Team Squad</button>
+              <button class="btn btn-sm btn-success" id="wizSaveCurrentTeamBottomBtn">Save Team Squad</button>
             </div>
           </div>
 
@@ -757,12 +1041,12 @@
               <label class="schedule-option active" id="scheduleOptAuto">
                 <input type="radio" name="scheduleType" value="auto" checked />
                 <div class="opt-content">
-                  <strong>🔄 Round-Robin / League Rounds (Points Table & NRR)</strong>
+                  <strong>Round-Robin / League Rounds (Points Table & NRR)</strong>
                   <p class="muted">Teams play against each other in balanced rounds. Full points table standings.</p>
                   
                   <!-- Number of rounds selector -->
                   <div class="form-group mt-3" id="wizAutoRoundsConfig" style="margin-bottom: 0;">
-                    <label style="font-weight: 700; color: var(--ink);">🔄 How many rounds should each team play against each other?</label>
+                    <label style="font-weight: 700; color: var(--ink);">How many rounds should each team play against each other?</label>
                     <select id="wizTournamentRounds" class="form-control" style="background: var(--bg-card); margin-top: 6px;">
                       <option value="1" selected>1 Round (Single Round-Robin — Play each team once)</option>
                       <option value="2">2 Rounds (Double Round-Robin / Home & Away — Play each team twice)</option>
@@ -770,7 +1054,7 @@
                       <option value="4">4 Rounds (Play each team 4 times)</option>
                     </select>
                     <div style="margin-top: 6px; font-size: 12px; color: var(--gold);" id="wizCalculatedMatchesNote">
-                      📊 6 matches scheduled across 3 matchdays
+                      6 matches scheduled across 3 matchdays
                     </div>
                   </div>
                 </div>
@@ -780,14 +1064,14 @@
               <label class="schedule-option" id="scheduleOptKnockout">
                 <input type="radio" name="scheduleType" value="knockout" />
                 <div class="opt-content">
-                  <strong>🏆 Knockout / Single-Elimination Tournament</strong>
+                  <strong>Knockout / Single-Elimination Tournament</strong>
                   <p class="muted">High-stakes elimination tree (Quarter-Finals, Semi-Finals, Grand Final). Winning teams advance automatically to the next round!</p>
                   
                   <div style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
                     <div style="font-size: 12px; color: var(--coral);" id="wizKnockoutNote">
-                      🏆 3 knockout matches (Semi-Finals & Grand Final)
+                      3 knockout matches (Semi-Finals & Grand Final)
                     </div>
-                    <button type="button" class="btn btn-xs btn-outline" id="wizToggleKnockoutGraphBtn" style="font-size: 11px;">🌳 View Schedule Graph</button>
+                    <button type="button" class="btn btn-xs btn-outline" id="wizToggleKnockoutGraphBtn" style="font-size: 11px;">View Schedule Graph</button>
                   </div>
 
                   <!-- Visual Schedule Graph inside Wizard -->
@@ -801,7 +1085,7 @@
               <label class="schedule-option" id="scheduleOptManual">
                 <input type="radio" name="scheduleType" value="manual" />
                 <div class="opt-content">
-                  <strong>✍️ Custom Manual Matchmaker</strong>
+                  <strong>Custom Manual Matchmaker</strong>
                   <p class="muted">Manually pair up specific teams and build your own custom match list.</p>
                 </div>
               </label>
@@ -822,8 +1106,8 @@
 
         <div class="modal-footer">
           <button class="btn btn-ghost" id="wizBackBtn" style="display: none;">Back</button>
-          <button class="btn btn-primary" id="wizNextBtn">Next Step ➔</button>
-          <button class="btn btn-success" id="wizLaunchBtn" style="display: none;">🚀 Launch Tournament Hub</button>
+          <button class="btn btn-primary" id="wizNextBtn">Next Step -></button>
+          <button class="btn btn-success" id="wizLaunchBtn" style="display: none;">Launch Tournament Hub</button>
         </div>
       </div>
     </div>
@@ -832,8 +1116,8 @@
     <div class="modal-backdrop" id="wicketModal">
       <div class="modal-card">
         <div class="modal-header">
-          <h3>🎯 Record Wicket Dismissal</h3>
-          <button class="modal-close" id="closeWicketModalBtn">✕</button>
+          <h3>Record Wicket Dismissal</h3>
+          <button class="modal-close" id="closeWicketModalBtn"></button>
         </div>
         <div class="modal-body">
           <div class="form-group">
@@ -851,6 +1135,15 @@
             <label>Batter Dismissed</label>
             <select id="wktBatterOut" class="form-control">
               <!-- Striker or Non-striker -->
+            </select>
+          </div>
+          <div class="form-group" id="wktRunOutRunsGroup" style="display: none;">
+            <label>Runs Completed Before Run Out</label>
+            <select id="wktRunOutRuns" class="form-control">
+              <option value="0" selected>0 Runs (Out attempting 1st run / Direct Hit)</option>
+              <option value="1">1 Run (Completed 1, out running 2nd)</option>
+              <option value="2">2 Runs (Completed 2, out running 3rd)</option>
+              <option value="3">3 Runs (Completed 3, out running 4th)</option>
             </select>
           </div>
           <div class="form-group" id="wktFielderGroup">
@@ -877,24 +1170,24 @@
         <div class="modal-header">
           <div>
             <span class="competition">CREASE MANAGEMENT</span>
-            <h3>🏏 Select Batsmen at Crease</h3>
+            <h3>Select Batsmen at Crease</h3>
           </div>
-          <button class="modal-close" id="closeBatsmanModalBtn">✕</button>
+          <button class="modal-close" id="closeBatsmanModalBtn"></button>
         </div>
         <div class="modal-body">
           <p class="muted">Choose the on-strike batsman and non-striker from the batting lineup.</p>
           <div class="form-group">
-            <label>🔴 Striker (On Strike)</label>
+            <label>Striker (On Strike)</label>
             <select id="selectStrikerDropdown" class="form-control"></select>
           </div>
           <div class="form-group">
-            <label>⚪ Non-Striker</label>
+            <label>Non-Striker</label>
             <select id="selectNonStrikerDropdown" class="form-control"></select>
           </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" id="cancelBatsmanModalBtn">Cancel</button>
-          <button class="btn btn-primary" id="confirmBatsmanModalBtn">✓ Set Batsmen</button>
+          <button class="btn btn-primary" id="confirmBatsmanModalBtn">Set Batsmen</button>
         </div>
       </div>
     </div>
@@ -903,8 +1196,8 @@
     <div class="modal-backdrop" id="bowlerModal">
       <div class="modal-card">
         <div class="modal-header">
-          <h3>🎯 Select Bowler for Next Over</h3>
-          <button class="modal-close" id="closeBowlerModalBtn">✕</button>
+          <h3>Select Bowler for Next Over</h3>
+          <button class="modal-close" id="closeBowlerModalBtn"></button>
         </div>
         <div class="modal-body">
           <p class="muted">Choose a bowler from the bowling team (consecutive overs by same bowler not allowed).</p>
@@ -925,8 +1218,8 @@
     <div class="modal-backdrop" id="quickMatchModal">
       <div class="modal-card">
         <div class="modal-header">
-          <h3>⚡ Quick Match Setup</h3>
-          <button class="modal-close" id="closeQuickMatchModalBtn">✕</button>
+          <h3>Quick Match Setup</h3>
+          <button class="modal-close" id="closeQuickMatchModalBtn"></button>
         </div>
         <div class="modal-body">
           <div class="form-group">
@@ -960,9 +1253,9 @@
         <div class="modal-header">
           <div>
             <span class="competition" id="editSquadCompetitionTag">SQUAD MANAGEMENT</span>
-            <h2 id="editSquadModalTitle">✏️ Edit Team Squad</h2>
+            <h2 id="editSquadModalTitle">Edit Team Squad</h2>
           </div>
-          <button class="modal-close" id="closeEditSquadModalBtn">✕</button>
+          <button class="modal-close" id="closeEditSquadModalBtn"></button>
         </div>
         <div class="modal-body">
           <div class="squad-config-panel panel mb-3">
@@ -977,11 +1270,11 @@
             </div>
             <div class="form-row mt-3">
               <div class="form-group mb-0">
-                <label>👑 Team Captain (C)</label>
+                <label>Team Captain (C)</label>
                 <select id="editSquadCaptainSelect" class="form-control"></select>
               </div>
               <div class="form-group mb-0">
-                <label>⭐ Vice-Captain (VC)</label>
+                <label>Vice-Captain (VC)</label>
                 <select id="editSquadViceCaptainSelect" class="form-control"></select>
               </div>
             </div>
@@ -991,28 +1284,86 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" id="cancelEditSquadBtn">Cancel</button>
-          <button class="btn btn-success" id="saveEditSquadBtn">💾 Save Squad Changes</button>
+          <button class="btn btn-success" id="saveEditSquadBtn">Save Squad Changes</button>
         </div>
       </div>
     </div>
 
     <!-- 5. MATCH RESULT VICTORY MODAL -->
     <div class="modal-backdrop" id="victoryModal">
-      <div class="modal-card modal-victory text-center">
-        <div class="trophy-big">🏆</div>
+      <div class="modal-card modal-victory text-center" style="max-width: 500px;">
+        <div class="trophy-big font-display" style="font-size: 24px; font-weight: 800; color: var(--gold); letter-spacing: 1px;">CHAMPIONS</div>
         <span class="competition">MATCH COMPLETED</span>
         <h2 id="victoryTitle">Riverside Strikers Won!</h2>
         <p class="victory-margin" id="victoryMargin">by 24 runs</p>
         
         <div class="potm-highlight panel" id="victoryPotmCard">
-          <small class="award">⭐ PLAYER OF THE MATCH</small>
+          <small class="award">PLAYER OF THE MATCH</small>
           <h3 id="victoryPotmName">Arjun Mehta</h3>
           <p id="victoryPotmStat">68 runs off 43 balls (7x4, 2x6)</p>
         </div>
 
-        <div class="victory-actions">
-          <button class="btn btn-primary" id="viewFullScorecardBtn">View Scorecard</button>
-          <button class="btn btn-outline" id="viewPointsTableBtn">View Points Table</button>
+        <!-- Next Match Prompt -->
+        <div class="panel mb-3" id="victoryNextMatchBox" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.3); padding: 12px 16px;">
+          <small class="award" style="color: #10b981;">UPCOMING FIXTURE</small>
+          <div id="victoryNextMatchInfo" style="font-weight: 600; margin: 4px 0 10px 0; color: var(--ink);">Next Match: Team 1 vs Team 2</div>
+          <button class="btn btn-success" id="startNextMatchBtn" style="width: 100%; justify-content: center; font-weight: 700; padding: 12px;">Start Next Match</button>
+        </div>
+
+        <div class="victory-actions" style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button class="btn btn-outline" id="viewFullScorecardBtn">View Scorecard</button>
+            <button class="btn btn-outline" id="viewPointsTableBtn">Points Table</button>
+          </div>
+          <button class="btn btn-ghost" id="closeVictoryModalBtn" style="font-size: 13px; padding: 8px;">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. MATCH TIED / TIE-BREAKER MODAL -->
+    <div class="modal-backdrop" id="tieBreakerModal">
+      <div class="modal-card text-center" style="max-width: 500px;">
+        <div class="font-display" style="font-size: 20px; font-weight: 800; color: #f59e0b; letter-spacing: 1px; margin-bottom: 4px;">MATCH TIED!</div>
+        <span class="competition">DECIDE THE RESULT</span>
+        <h2 id="tieScoresSummary" style="margin: 8px 0 4px 0; font-size: 18px;">Team 1 vs Team 2</h2>
+        <p class="muted mb-4" style="font-size: 13px;">Scores are level. Choose how to decide the winner:</p>
+
+        <div class="tie-options-grid" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+          <!-- Option 1: Super Over -->
+          <button class="btn btn-primary" id="startSuperOverBtn" style="padding: 14px; font-size: 14px; justify-content: center; font-weight: 700;">
+            Play Super Over (1 Over Shootout)
+          </button>
+          
+          <!-- Option 2: Winner by Boundaries Count -->
+          <button class="btn btn-outline" id="decideByBoundariesBtn" style="padding: 14px; font-size: 14px; justify-content: center; border-color: rgba(245, 158, 11, 0.4); color: #f59e0b; font-weight: 700;">
+            Decide Winner by Boundaries (4s + 6s)
+          </button>
+
+          <!-- Option 3: Accept Tie (Share points) -->
+          <button class="btn btn-ghost" id="acceptTieBtn" style="padding: 10px; font-size: 13px; justify-content: center;">
+            Accept Match as Tied (Share Points)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. EXTRA RUNS MODAL (Wide, No Ball, Leg Bye, Bye) -->
+    <div class="modal-backdrop" id="extraRunsModal">
+      <div class="modal-card text-center" style="max-width: 440px;">
+        <div class="modal-header" style="justify-content: center; padding-bottom: 8px;">
+          <div>
+            <span class="competition" id="extraModalBadge" style="color: var(--coral);">EXTRA RUNS</span>
+            <h3 id="extraModalTitle" style="font-size: 18px; margin-top: 4px;">Select Runs Scored</h3>
+            <p id="extraModalSubtitle" class="muted" style="font-size: 12px; margin-top: 2px;">Choose additional runs scored on this delivery</p>
+          </div>
+        </div>
+        <div class="modal-body" style="padding: 12px 0;">
+          <div id="extraRunsOptionsContainer" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+            <!-- Dynamic option buttons injected here -->
+          </div>
+        </div>
+        <div class="modal-footer" style="justify-content: center; border-top: none; padding-top: 8px;">
+          <button class="btn btn-ghost" id="cancelExtraRunsBtn" style="font-size: 13px;">Cancel</button>
         </div>
       </div>
     </div>
@@ -1020,17 +1371,24 @@
     <!-- TOAST NOTIFICATION -->
     <div id="toast" class="toast" role="status"></div>
 
-    <script src="app.js?v=14"></script>
+    <script src="app.js?v=29"></script>
     <script>
-      // Register Service Worker with immediate update check
+      // Register Service Worker with immediate update and automatic fresh load
       if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('sw.js').then((reg) => {
-            reg.update();
-            console.log('ScoreWizz Service Worker registered & updated:', reg.scope);
-          }).catch((err) => {
-            console.log('Service Worker registration failed:', err);
-          });
+        navigator.serviceWorker.register('sw.js?v=29').then((reg) => {
+          reg.update();
+          reg.onupdatefound = () => {
+            const installing = reg.installing;
+            if (installing) {
+              installing.onstatechange = () => {
+                if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                  window.location.reload();
+                }
+              };
+            }
+          };
+        }).catch((err) => {
+          console.log('Service Worker registration failed:', err);
         });
       }
     </script>

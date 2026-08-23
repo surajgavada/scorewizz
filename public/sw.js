@@ -1,4 +1,4 @@
-const CACHE_NAME = 'scorewizz-v14';
+const CACHE_NAME = 'scorewizz-v29';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -40,8 +40,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-First for static assets so user always sees newest code immediately,
-  // with cache fallback for 100% offline usage.
+  // Network-First for static assets so user always sees the newest code immediately
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
@@ -52,4 +51,14 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
+          if (event.request.mode === 'navigate') {
+            return caches.match('/index.html');
+          }
+        });
+      })
+  );
 });

@@ -199,109 +199,173 @@ def generate_round_robin_schedule(teams, tournament_id, rounds_count=1):
 
 def generate_knockout_schedule(teams, tournament_id):
     """
-    Generates a single-elimination tournament knockout bracket with advancement links.
+    Generates a universal single-elimination tournament knockout bracket for any number of teams N >= 2,
+    with automatic seeding, Byes, progression links (next_fixture_id, next_slot), and stage labels.
     """
+    import math
     n = len(teams)
     if n < 2:
         return []
         
-    fixtures = []
-    if n == 2:
-        fixtures.append({
-            'id': f"fix_{tournament_id}_1",
-            'tournament_id': tournament_id,
-            'match_number': 1,
-            'team1_id': teams[0]['id'],
-            'team2_id': teams[1]['id'],
-            'venue': "Main Stadium",
-            'match_date': "Grand Final 🏆",
-            'status': 'upcoming'
-        })
-    elif n <= 4:
-        fixtures.append({
-            'id': f"fix_{tournament_id}_1",
-            'tournament_id': tournament_id,
-            'match_number': 1,
-            'team1_id': teams[0]['id'],
-            'team2_id': teams[min(3, n-1)]['id'],
-            'venue': "Pitch 1",
-            'match_date': "Semi-Final 1",
-            'status': 'upcoming'
-        })
-        fixtures.append({
-            'id': f"fix_{tournament_id}_2",
-            'tournament_id': tournament_id,
-            'match_number': 2,
-            'team1_id': teams[min(1, n-1)]['id'],
-            'team2_id': teams[min(2, n-1)]['id'],
-            'venue': "Pitch 2",
-            'match_date': "Semi-Final 2",
-            'status': 'upcoming'
-        })
-        fixtures.append({
-            'id': f"fix_{tournament_id}_3",
-            'tournament_id': tournament_id,
-            'match_number': 3,
-            'team1_id': 'TBD (Winner SF1)',
-            'team2_id': 'TBD (Winner SF2)',
-            'venue': "Grand Stadium Arena",
-            'match_date': "Grand Final 🏆",
-            'status': 'upcoming'
-        })
-    else:
-        # Quarter-Finals, Semi-Finals, Grand Final
-        seeds = [
-            (0, min(7, n-1)),
-            (min(3, n-1), min(4, n-1)),
-            (min(1, n-1), min(6, n-1)),
-            (min(2, n-1), min(5, n-1))
-        ]
-        for i in range(4):
-            t1 = teams[seeds[i][0]]
-            t2 = teams[seeds[i][1]]
-            fixtures.append({
-                'id': f"fix_{tournament_id}_{i+1}",
-                'tournament_id': tournament_id,
-                'match_number': i + 1,
-                'team1_id': t1['id'],
-                'team2_id': t2['id'],
-                'venue': f"Pitch {i + 1}",
-                'match_date': f"Quarter-Final {i + 1}",
-                'status': 'upcoming'
-            })
-            
-        fixtures.append({
-            'id': f"fix_{tournament_id}_5",
-            'tournament_id': tournament_id,
-            'match_number': 5,
-            'team1_id': 'TBD (Winner QF1)',
-            'team2_id': 'TBD (Winner QF2)',
-            'venue': "Pitch 1",
-            'match_date': "Semi-Final 1",
-            'status': 'upcoming'
-        })
-        fixtures.append({
-            'id': f"fix_{tournament_id}_6",
-            'tournament_id': tournament_id,
-            'match_number': 6,
-            'team1_id': 'TBD (Winner QF3)',
-            'team2_id': 'TBD (Winner QF4)',
-            'venue': "Pitch 2",
-            'match_date': "Semi-Final 2",
-            'status': 'upcoming'
-        })
-        fixtures.append({
-            'id': f"fix_{tournament_id}_7",
-            'tournament_id': tournament_id,
-            'match_number': 7,
-            'team1_id': 'TBD (Winner SF1)',
-            'team2_id': 'TBD (Winner SF2)',
-            'venue': "Grand Stadium Arena",
-            'match_date': "Grand Final 🏆",
-            'status': 'upcoming'
-        })
+    # 1. Determine bracket size (smallest power of 2 >= n)
+    k = math.ceil(math.log2(n))
+    P = 1 << k
+    
+    # 2. Standard tournament seeding
+    seeds = [0, 1]
+    while len(seeds) < P:
+        next_seeds = []
+        target_sum = len(seeds) * 2 - 1
+        for s in seeds:
+            next_seeds.append(s)
+            next_seeds.append(target_sum - s)
+        seeds = next_seeds
         
-    return fixtures
+    # 3. Initial leaves (teams or byes)
+    leaves = []
+    for s in seeds:
+        if s < n:
+            leaves.append({'type': 'team', 'team': teams[s], 'seed': s})
+        else:
+            leaves.append({'type': 'bye', 'seed': s})
+            
+    round_names = {
+        1: "Grand Final",
+        2: "Semi-Final",
+        3: "Quarter-Final",
+        4: "Round of 16",
+        5: "Round of 32",
+        6: "Round of 64"
+    }
+    
+    current_layer = leaves
+    round_num = 1
+    total_rounds = k
+    all_matches = []
+    match_counter = 1
+    
+    while len(current_layer) > 1:
+        next_layer = []
+        remaining_rounds = total_rounds - round_num + 1
+        stage_name = round_names.get(remaining_rounds, f"Round {round_num}")
+        
+        for i in range(0, len(current_layer), 2):
+            node1 = current_layer[i]
+            node2 = current_layer[i+1]
+            
+            if node1['type'] == 'bye' and node2['type'] == 'bye':
+                next_layer.append({'type': 'bye'})
+            elif node1['type'] != 'bye' and node2['type'] == 'bye':
+                next_layer.append(node1)
+            elif node1['type'] == 'bye' and node2['type'] != 'bye':
+                next_layer.append(node2)
+            else:
+                match_id = f"fix_{tournament_id}_{match_counter}"
+                match_obj = {
+                    'id': match_id,
+                    'tournament_id': tournament_id,
+                    'match_number': match_counter,
+                    'node1': node1,
+                    'node2': node2,
+                    'stage_round': remaining_rounds,
+                    'stage_name': stage_name,
+                    'round_index': round_num
+                }
+                all_matches.append(match_obj)
+                match_counter += 1
+                next_layer.append({'type': 'match', 'match': match_obj})
+                
+        current_layer = next_layer
+        round_num += 1
+        
+    all_matches.sort(key=lambda m: (m['round_index'], m['match_number']))
+    
+    final_fixtures = []
+    match_id_map = {}
+    for idx, m in enumerate(all_matches):
+        new_match_num = idx + 1
+        old_id = m['id']
+        new_id = f"fix_{tournament_id}_{new_match_num}"
+        match_id_map[old_id] = (new_id, new_match_num)
+        
+    stage_counts = {}
+    for m in all_matches:
+        sn = m['stage_name']
+        stage_counts[sn] = stage_counts.get(sn, 0) + 1
+        
+    stage_indices = {}
+    for idx, m in enumerate(all_matches):
+        new_id, new_match_num = match_id_map[m['id']]
+        sn = m['stage_name']
+        stage_indices[sn] = stage_indices.get(sn, 0) + 1
+        
+        if stage_counts[sn] > 1:
+            stage_display = f"{sn} {stage_indices[sn]}"
+        else:
+            stage_display = sn
+            
+        n1 = m['node1']
+        n2 = m['node2']
+        
+        if n1['type'] == 'team':
+            t1_id = n1['team']['id']
+            t1_name = n1['team']['name']
+            t1_short = n1['team'].get('short_name', 'T1')
+            t1_color = n1['team'].get('color', '#ed6a4e')
+        else:
+            prev_new_id, prev_num = match_id_map[n1['match']['id']]
+            t1_id = f"TBD_M{prev_num}"
+            t1_name = f"TBD (Winner Match #{prev_num})"
+            t1_short = "TBD"
+            t1_color = "#64748b"
+            
+        if n2['type'] == 'team':
+            t2_id = n2['team']['id']
+            t2_name = n2['team']['name']
+            t2_short = n2['team'].get('short_name', 'T2')
+            t2_color = n2['team'].get('color', '#3b82f6')
+        else:
+            prev_new_id, prev_num = match_id_map[n2['match']['id']]
+            t2_id = f"TBD_M{prev_num}"
+            t2_name = f"TBD (Winner Match #{prev_num})"
+            t2_short = "TBD"
+            t2_color = "#64748b"
+            
+        fix_dict = {
+            'id': new_id,
+            'tournament_id': tournament_id,
+            'match_number': new_match_num,
+            'team1_id': t1_id,
+            'team1_name': t1_name,
+            'team1_short': t1_short,
+            'team1_color': t1_color,
+            'team2_id': t2_id,
+            'team2_name': t2_name,
+            'team2_short': t2_short,
+            'team2_color': t2_color,
+            'venue': f"Pitch {((new_match_num - 1) % 4) + 1} Arena" if m['stage_round'] > 1 else "Grand Stadium Arena",
+            'match_date': stage_display,
+            'stage': stage_display,
+            'status': 'upcoming',
+            'winner_team_id': None,
+            'result_text': None
+        }
+        final_fixtures.append(fix_dict)
+        
+    for idx, m in enumerate(all_matches):
+        for future_m in all_matches:
+            if future_m['node1'].get('type') == 'match' and future_m['node1']['match']['id'] == m['id']:
+                target_new_id, _ = match_id_map[future_m['id']]
+                final_fixtures[idx]['next_fixture_id'] = target_new_id
+                final_fixtures[idx]['next_slot'] = 1
+                break
+            elif future_m['node2'].get('type') == 'match' and future_m['node2']['match']['id'] == m['id']:
+                target_new_id, _ = match_id_map[future_m['id']]
+                final_fixtures[idx]['next_fixture_id'] = target_new_id
+                final_fixtures[idx]['next_slot'] = 2
+                break
+                
+    return final_fixtures
 
 def create_tournament_with_squads(tournament_data):
     """
@@ -399,6 +463,19 @@ def get_tournaments_list():
         cursor.execute("SELECT * FROM tournaments ORDER BY created_at DESC")
         return [dict(r) for r in cursor.fetchall()]
 
+def delete_tournament(tournament_id):
+    """Deletes a tournament and its associated records."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM matches WHERE tournament_id = ?", (tournament_id,))
+        cursor.execute("DELETE FROM fixtures WHERE tournament_id = ?", (tournament_id,))
+        cursor.execute("DELETE FROM points_table WHERE tournament_id = ?", (tournament_id,))
+        cursor.execute("DELETE FROM players WHERE tournament_id = ?", (tournament_id,))
+        cursor.execute("DELETE FROM teams WHERE tournament_id = ?", (tournament_id,))
+        cursor.execute("DELETE FROM tournaments WHERE id = ?", (tournament_id,))
+        conn.commit()
+        return True
+
 def get_tournament_full(tournament_id):
     """
     Returns complete tournament object with teams, players, points table, fixtures, and leaderboards.
@@ -456,7 +533,7 @@ def get_tournament_full(tournament_id):
                     r['form'] = []
         t_dict['points_table'] = raw_pt
         
-        # Leaderboards (Orange Cap & Purple Cap & MVP)
+        # Leaderboards (Orange Cap, Purple Cap, MOTS, Strike Rate, Economy)
         cursor.execute("""
             SELECT p.*, t.name as team_name, t.short_name as team_short, t.color as team_color
             FROM players p
@@ -476,6 +553,64 @@ def get_tournament_full(tournament_id):
             LIMIT 5
         """, (tournament_id,))
         t_dict['purple_cap'] = [dict(r) for r in cursor.fetchall()]
+
+        # Most Sixes (6s)
+        cursor.execute("""
+            SELECT p.*, t.name as team_name, t.short_name as team_short, t.color as team_color
+            FROM players p
+            JOIN teams t ON p.team_id = t.id
+            WHERE p.tournament_id = ?
+            ORDER BY p.sixes DESC, p.runs DESC
+            LIMIT 5
+        """, (tournament_id,))
+        t_dict['most_sixes'] = [dict(r) for r in cursor.fetchall()]
+
+        # Most Fours (4s)
+        cursor.execute("""
+            SELECT p.*, t.name as team_name, t.short_name as team_short, t.color as team_color
+            FROM players p
+            JOIN teams t ON p.team_id = t.id
+            WHERE p.tournament_id = ?
+            ORDER BY p.fours DESC, p.runs DESC
+            LIMIT 5
+        """, (tournament_id,))
+        t_dict['most_fours'] = [dict(r) for r in cursor.fetchall()]
+
+        # Best Batting Strike Rate (min 1 ball faced)
+        cursor.execute("""
+            SELECT p.*, t.name as team_name, t.short_name as team_short, t.color as team_color,
+                   ROUND((CAST(p.runs AS REAL) * 100.0 / MAX(1, p.balls_faced)), 1) as strike_rate
+            FROM players p
+            JOIN teams t ON p.team_id = t.id
+            WHERE p.tournament_id = ? AND p.balls_faced > 0
+            ORDER BY strike_rate DESC, p.runs DESC
+            LIMIT 5
+        """, (tournament_id,))
+        t_dict['best_strike_rate'] = [dict(r) for r in cursor.fetchall()]
+
+        # Best Bowling Economy (min 6 balls / 1 over bowled)
+        cursor.execute("""
+            SELECT p.*, t.name as team_name, t.short_name as team_short, t.color as team_color,
+                   ROUND((CAST(p.runs_conceded AS REAL) / (p.balls_bowled / 6.0)), 2) as economy_rate
+            FROM players p
+            JOIN teams t ON p.team_id = t.id
+            WHERE p.tournament_id = ? AND p.balls_bowled >= 6
+            ORDER BY economy_rate ASC, p.wickets DESC
+            LIMIT 5
+        """, (tournament_id,))
+        t_dict['best_bowling_economy'] = [dict(r) for r in cursor.fetchall()]
+
+        # Man of the Series / Tournament MVP (Impact score = Runs * 1.0 + Wickets * 25 + SR bonus + Econ bonus)
+        cursor.execute("""
+            SELECT p.*, t.name as team_name, t.short_name as team_short, t.color as team_color,
+                   ROUND(p.runs * 1.0 + p.wickets * 25.0, 0) as impact_points
+            FROM players p
+            JOIN teams t ON p.team_id = t.id
+            WHERE p.tournament_id = ?
+            ORDER BY impact_points DESC, p.runs DESC, p.wickets DESC
+            LIMIT 5
+        """, (tournament_id,))
+        t_dict['man_of_the_series'] = [dict(r) for r in cursor.fetchall()]
         
         return t_dict
 
