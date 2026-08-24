@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=36" />
+    <link rel="stylesheet" href="styles.css?v=40" />
     <script>
       // Clear stale caches so user always gets the latest code
       if ('serviceWorker' in navigator) {
@@ -22,7 +22,53 @@
     </script>
   </head>
   <body>
-    <div class="app-shell">
+    <!-- FULL SCREEN CENTERED LOGIN / SIGN IN PAGE -->
+    <div class="auth-fullscreen-page" id="authFullscreenPage">
+      <div class="auth-box">
+        <div class="auth-brand">
+          <div class="auth-logo-badge">SW</div>
+          <h1 class="auth-title">ScoreWizz</h1>
+          <p class="auth-subtitle">Cricket Tournament Engine & Live Scoring</p>
+        </div>
+
+        <div class="auth-card">
+          <div class="auth-tabs">
+            <button class="auth-tab-btn active" id="authTabSignIn">Sign In</button>
+            <button class="auth-tab-btn" id="authTabSignUp">Sign Up</button>
+          </div>
+
+          <form id="authFullscreenForm" onsubmit="return false;">
+            <div class="form-group mb-3">
+              <label>Username</label>
+              <input type="text" id="fsAuthUsername" class="form-control" placeholder="Enter username" required autocomplete="username" />
+            </div>
+
+            <div class="form-group mb-3">
+              <label>Password / PIN</label>
+              <input type="password" id="fsAuthPassword" class="form-control" placeholder="Enter password or PIN" required autocomplete="current-password" />
+            </div>
+
+            <div class="form-group mb-3" id="fsRoleGroup" style="display: none;">
+              <label>Account Role</label>
+              <select id="fsAuthRole" class="form-control">
+                <option value="Scorer">Official Scorer / Admin</option>
+                <option value="Viewer">Spectator / Viewer</option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full" id="fsAuthSubmitBtn" style="padding: 12px; font-size: 15px; font-weight: 700; margin-top: 8px;">Sign In</button>
+            <button type="button" class="btn btn-ghost w-full" id="fsGuestBtn" style="margin-top: 8px; font-size: 13px;">Continue as Guest →</button>
+          </form>
+        </div>
+
+        <div class="auth-footer-note">
+          <span>Offline Ready • High Performance</span>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="app-shell" id="appShell" style="display: none;">
       <!-- SIDEBAR NAVIGATION -->
       <aside class="sidebar">
         <div class="brand">
@@ -85,6 +131,12 @@
             <h1 id="pageTitle">Live Scoreboard</h1>
           </div>
           <div class="top-actions">
+            <div id="userProfileChip" style="display: flex; align-items: center; gap: 8px;">
+              <span class="badge-status" id="userRoleBadge" style="background: rgba(59, 130, 246, 0.15); color: var(--blue);">Scorer</span>
+              <span id="userNameDisplay" style="font-weight: 600; font-size: 13px; color: var(--ink);">Admin</span>
+              <button class="btn btn-xs btn-ghost" id="logoutBtn" title="Sign Out" style="color: var(--coral);">Sign Out</button>
+            </div>
+
             <span class="live-status" id="liveStatusBadge"><i></i> <span id="liveStatusText">LIVE MATCH</span></span>
             <button class="btn btn-sm btn-ghost" id="exportMatchBtn" title="Export Match Scorecard">Export</button>
             <button class="icon-button" id="resetMatchBtn" title="Reset Current Match">↻</button>
@@ -106,57 +158,42 @@
             </div>
           </div>
 
-          <!-- BIG SCORE HERO (3-COLUMN: BATTING TEAM | CENTER CRR/RRR | BOWLING TEAM) -->
+          <!-- BIG SCORE HERO -->
           <section class="score-hero">
-            <!-- Left Side: Batting Team & Score -->
-            <div class="score-hero-side score-hero-batting">
-              <div class="team-badge" id="battingTeamBadge">RVS</div>
-              <div class="score-copy">
-                <p><span id="battingTeamName">Riverside Strikers</span> <span class="badge-status">BATTING</span></p>
-                <div class="big-score" id="scoreDisplay">0<span>/0</span></div>
-                <div class="overs-wrap">
-                  <strong id="oversDisplay">0.0 <small>/ 20 ov</small></strong>
-                  <span class="balls-left" id="ballsLeftDisplay">120 balls remaining</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Center: Run Rate Display & Target -->
-            <div class="score-hero-center">
-              <div class="run-rate-card">
-                <div class="rr-item">
-                  <span class="rr-label">CRR</span>
-                  <strong id="runRateDisplay" class="rr-value">0.00</strong>
-                </div>
-                <div class="rr-item" id="requiredRRBox" style="display: none;">
-                  <span class="rr-label">REQ RR</span>
-                  <strong id="reqRunRateDisplay" class="rr-value req-rr">7.25</strong>
-                </div>
+            <div class="team-badge" id="battingTeamBadge">RVS</div>
+            <div class="score-copy">
+              <p><span id="battingTeamName">Riverside Strikers</span> <span class="badge-status">BATTING</span></p>
+              <div class="big-score" id="scoreDisplay">0<span>/0</span></div>
+              <div class="overs-wrap">
+                <strong id="oversDisplay">0.0 <small>/ 20 ov</small></strong>
+                <span class="balls-left" id="ballsLeftDisplay">120 balls remaining</span>
               </div>
               <div class="target-card" id="targetCard" style="display: none;">
                 <span class="target-title">TARGET: <strong id="targetRunsDisplay">145</strong></span>
                 <span class="target-sub" id="targetSubDisplay">Need 145 runs from 120 balls</span>
               </div>
             </div>
-
-            <!-- Right Side: Bowling Team (Mirrored) -->
-            <div class="score-hero-side score-hero-bowling">
-              <div class="score-copy text-right">
-                <p><span class="badge-status bowling-badge">BOWLING</span> <span id="bowlingTeamName">North Stars</span></p>
-                <div class="big-bowling-status" id="bowlingOversDisplay">0.0 <small>/ 20 ov</small></div>
-                <div class="overs-wrap justify-end">
-                  <strong id="bowlingWicketsDisplay">0 wickets taken</strong>
-                </div>
+            <div class="run-rate-box">
+              <div>
+                <span>Current RR</span>
+                <strong id="runRateDisplay">0.00</strong>
               </div>
-              <div class="team-badge bowling-team-badge" id="bowlingTeamBadge">NTS</div>
+              <div id="requiredRRBox" style="display: none; margin-top: 8px;">
+                <span>Required RR</span>
+                <strong id="reqRunRateDisplay" class="req-rr">7.25</strong>
+              </div>
             </div>
           </section>
 
           <!-- CONTENT GRID: BATSMEN + BOWLER -->
           <div class="content-grid">
-            <!-- BATSMEN -->
+            <!-- BATSMEN AT CREASE -->
             <section class="panel batters-panel">
-              <div class="panel-title" style="justify-content: flex-end; margin-bottom: 4px;">
+              <div class="panel-title">
+                <div>
+                  <h3>At the crease</h3>
+                  <span class="live-label" id="creaseLabel">● ON STRIKE: <span id="onStrikeName">Striker</span></span>
+                </div>
                 <div class="top-actions">
                   <button class="btn btn-xs btn-outline" id="selectBatsmenBtn">Select Batsmen</button>
                   <button class="btn btn-xs btn-ghost" id="swapStrikeCreaseBtn" title="Swap Strike">⇄ Swap Strike</button>
@@ -337,7 +374,7 @@
           <!-- BALL BY BALL TIMELINE -->
           <section class="timeline panel" id="scoreboardTimelinePanel">
             <div class="panel-title">
-              <h3 id="timelineHeaderTitle">Timeline</h3>
+              <h3>Recent Deliveries Timeline</h3>
               <button class="link-button" data-view-link="scorecard">View full scorecard →</button>
             </div>
             <div class="timeline-row" id="timelineRow">
@@ -1386,11 +1423,11 @@
     <!-- TOAST NOTIFICATION -->
     <div id="toast" class="toast" role="status"></div>
 
-    <script src="app.js?v=36"></script>
+    <script src="app.js?v=40"></script>
     <script>
       // Register Service Worker with immediate update and automatic fresh load
       if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
-        navigator.serviceWorker.register('sw.js?v=36').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=40').then((reg) => {
           reg.update();
           reg.onupdatefound = () => {
             const installing = reg.installing;

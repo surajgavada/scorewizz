@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ScoreWizz - Spectator Match Center</title>
+    <link rel="manifest" href="manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css?v=38" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <!-- SIDEBAR NAVIGATION -->
+      <aside class="sidebar">
+        <div class="brand">
+          <div>
+            <div class="brand-title">ScoreWizz</div>
+            <div class="brand-subtitle">SPECTATOR MATCH CENTER</div>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a href="#" data-view="scoreboard" class="active">Live Scoreboard</a>
+          <a href="#" data-view="scorecard">Full Scorecard</a>
+          <a href="#" data-view="points">Points Table</a>
+          <a href="#" data-view="schedule">Schedule & Matches</a>
+          <a href="#" data-view="teams">Teams & Players</a>
+          <a href="#" data-view="leaderboards">Leaderboards</a>
+          <a href="#" data-view="summary">Match Summary</a>
+          <a href="#" data-view="allTournaments">All Tournaments</a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <a href="admin.html" class="btn btn-sm btn-outline w-full" style="text-align: center;">Scorer / Admin Login</a>
+          <div class="version-tag" style="margin-top: 10px; font-size: 11px; color: var(--ink-faint); text-align: center;">
+            Fan Mode • Real-time Sync
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT -->
+      <main class="main-content">
+        <header class="topbar">
+          <div class="topbar-left">
+            <h1 class="page-title" id="topbarTitle">Live Match Center</h1>
+            <span class="live-pill" id="liveStatusBadge"><i></i> <span id="liveStatusText">LIVE MATCH</span></span>
+          </div>
+
+          <div class="topbar-actions">
+            <a href="admin.html" class="btn btn-sm btn-outline">Scorer Login</a>
+            <button class="btn btn-sm btn-ghost" id="themeToggleBtn" title="Toggle Light/Dark Theme">Dark</button>
+          </div>
+        </header>
+
+        <!-- VIEW 1: LIVE SCOREBOARD -->
+        <section id="scoreboardView" class="view active">
+          <div class="match-meta-bar">
+            <div>
+              <span class="competition" id="matchCompetition">PREMIER T20 CHAMPIONSHIP</span>
+              <h2 id="matchTitle">Riverside Strikers vs North Stars Cricket Club</h2>
+            </div>
+            <div class="meta-badges">
+              <span class="badge-tag" id="inningsBadge">1st Innings</span>
+            </div>
+          </div>
+
+          <!-- BIG SCORE HERO (3-COLUMN: BATTING TEAM | CENTER CRR/RRR | BOWLING TEAM) -->
+          <section class="score-hero">
+            <!-- Left Side: Batting Team & Score -->
+            <div class="score-hero-side score-hero-batting">
+              <div class="team-badge" id="battingTeamBadge">RVS</div>
+              <div class="score-copy">
+                <p><span id="battingTeamName">Riverside Strikers</span> <span class="badge-status">BATTING</span></p>
+                <div class="big-score" id="scoreDisplay">0<span>/0</span></div>
+                <div class="overs-wrap">
+                  <strong id="oversDisplay">0.0 <small>/ 20 ov</small></strong>
+                  <span class="balls-left" id="ballsLeftDisplay">120 balls remaining</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Center: Run Rate Display & Target -->
+            <div class="score-hero-center">
+              <div class="run-rate-card">
+                <div class="rr-item">
+                  <span class="rr-label">CRR</span>
+                  <strong id="runRateDisplay" class="rr-value">0.00</strong>
+                </div>
+                <div class="rr-item" id="requiredRRBox" style="display: none;">
+                  <span class="rr-label">REQ RR</span>
+                  <strong id="reqRunRateDisplay" class="rr-value req-rr">7.25</strong>
+                </div>
+              </div>
+              <div class="target-card" id="targetCard" style="display: none;">
+                <span class="target-title">TARGET: <strong id="targetRunsDisplay">145</strong></span>
+                <span class="target-sub" id="targetSubDisplay">Need 145 runs from 120 balls</span>
+              </div>
+            </div>
+
+            <!-- Right Side: Bowling Team (Mirrored) -->
+            <div class="score-hero-side score-hero-bowling">
+              <div class="score-copy text-right">
+                <p><span class="badge-status bowling-badge">BOWLING</span> <span id="bowlingTeamName">North Stars</span></p>
+                <div class="big-bowling-status" id="bowlingOversDisplay">0.0 <small>/ 20 ov</small></div>
+                <div class="overs-wrap justify-end">
+                  <strong id="bowlingWicketsDisplay">0 wickets taken</strong>
+                </div>
+              </div>
+              <div class="team-badge bowling-team-badge" id="bowlingTeamBadge">NTS</div>
+            </div>
+          </section>
+
+          <!-- CONTENT GRID: BATSMEN + BOWLER -->
+          <div class="content-grid">
+            <!-- BATSMEN -->
+            <section class="panel batters-panel">
+              <div class="panel-title">
+                <h3>At the Crease</h3>
+              </div>
+              <div class="batter-table">
+                <div class="batter-row header-row">
+                  <span>Batter</span>
+                  <span>R</span>
+                  <span>B</span>
+                  <span>4s</span>
+                  <span>6s</span>
+                  <span>SR</span>
+                </div>
+                <div class="batter-row striker" id="strikerRow">
+                  <div class="batter-info">
+                    <strong id="strikerName">Striker</strong>
+                    <small class="striker-pill">ON STRIKE *</small>
+                  </div>
+                  <span class="runs-val" id="strikerRuns">0</span>
+                  <span id="strikerBalls">0</span>
+                  <span id="strikerFours">0</span>
+                  <span id="strikerSixes">0</span>
+                  <span id="strikerSR">0.0</span>
+                </div>
+                <div class="batter-row" id="nonStrikerRow">
+                  <div class="batter-info">
+                    <strong id="nonStrikerName">Non-Striker</strong>
+                    <small class="muted">NON-STRIKER</small>
+                  </div>
+                  <span class="runs-val" id="nonStrikerRuns">0</span>
+                  <span id="nonStrikerBalls">0</span>
+                  <span id="nonStrikerFours">0</span>
+                  <span id="nonStrikerSixes">0</span>
+                  <span id="nonStrikerSR">0.0</span>
+                </div>
+              </div>
+
+              <div class="partnership-bar">
+                <span>Partnership:</span>
+                <strong id="partnershipRuns">0 runs</strong>
+                <small id="partnershipBalls">(0 balls)</small>
+              </div>
+            </section>
+
+            <!-- CURRENT BOWLER -->
+            <section class="panel bowler-panel">
+              <div class="panel-title">
+                <h3>Current Bowler</h3>
+              </div>
+              <div class="bowler-card">
+                <div class="bowler-avatar" id="bowlerAvatar">BW</div>
+                <div class="bowler-details">
+                  <strong id="currentBowlerName">Bowler Name</strong>
+                  <small id="bowlerFigures">0.0 ov • 0/0 (0 Maidens)</small>
+                </div>
+                <div class="bowler-econ">
+                  <span class="label">ECON</span>
+                  <strong id="bowlerEcon">0.00</strong>
+                </div>
+              </div>
+
+              <!-- THIS OVER BALL STRIP -->
+              <div class="over-strip-wrap">
+                <div class="strip-label">THIS OVER:</div>
+                <div class="ball-strip" id="thisOverStrip"></div>
+              </div>
+
+              <div class="bowler-foot">
+                <span>Dots: <strong id="bowlerDots">0</strong></span>
+                <span>Over Runs: <strong id="thisOverRuns">0 runs</strong></span>
+              </div>
+            </section>
+          </div>
+
+          <!-- COMPLETED MATCH SUMMARY ON SCOREBOARD -->
+          <section class="panel scoreboard-summary-panel" id="scoreboardSummaryPanel" style="display: none;">
+            <div class="summary-hero">
+              <h3 id="summaryResultText" style="color: var(--gold); font-size: 20px;">Match Completed!</h3>
+              <p class="muted">All innings have ended. You can view the full scorecard below.</p>
+            </div>
+          </section>
+
+          <!-- BALL BY BALL TIMELINE -->
+          <section class="timeline panel" id="scoreboardTimelinePanel">
+            <div class="panel-title">
+              <h3 id="timelineHeaderTitle">Timeline</h3>
+              <button class="link-button" data-view="scorecard">View full scorecard →</button>
+            </div>
+            <div class="timeline-row" id="timelineRow">
+              <span class="muted" style="padding: 10px;">Match ready to begin.</span>
+            </div>
+          </section>
+        </section>
+
+        <!-- VIEW 2: FULL SCORECARD -->
+        <section id="scorecardView" class="view">
+          <div class="section-heading">
+            <span class="competition">OFFICIAL MATCH SCORECARD</span>
+            <h2 id="scorecardHeading">Scorecard</h2>
+          </div>
+          <div id="innings1ScorecardBlock" class="scorecard-block">
+            <section class="panel mb-4">
+              <div class="panel-title">
+                <h3>1st Innings - Batting</h3>
+                <span class="badge-tag" id="inn1TotalBadge">0/0</span>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table" id="inn1BattingTable">
+                  <thead><tr><th>Batter</th><th>Dismissal</th><th class="text-right">R</th><th class="text-right">B</th><th class="text-right">4s</th><th class="text-right">6s</th><th class="text-right">SR</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </section>
+            <section class="panel mb-4">
+              <div class="panel-title"><h3>1st Innings - Bowling</h3></div>
+              <div class="table-responsive">
+                <table class="data-table" id="inn1BowlingTable">
+                  <thead><tr><th>Bowler</th><th class="text-right">O</th><th class="text-right">M</th><th class="text-right">R</th><th class="text-right">W</th><th class="text-right">ECON</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div id="innings2ScorecardBlock" class="scorecard-block">
+            <section class="panel mb-4">
+              <div class="panel-title">
+                <h3>2nd Innings - Batting</h3>
+                <span class="badge-tag" id="inn2TotalBadge">0/0</span>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table" id="inn2BattingTable">
+                  <thead><tr><th>Batter</th><th>Dismissal</th><th class="text-right">R</th><th class="text-right">B</th><th class="text-right">4s</th><th class="text-right">6s</th><th class="text-right">SR</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </section>
+            <section class="panel mb-4">
+              <div class="panel-title"><h3>2nd Innings - Bowling</h3></div>
+              <div class="table-responsive">
+                <table class="data-table" id="inn2BowlingTable">
+                  <thead><tr><th>Bowler</th><th class="text-right">O</th><th class="text-right">M</th><th class="text-right">R</th><th class="text-right">W</th><th class="text-right">ECON</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- VIEW 3: POINTS TABLE -->
+        <section id="pointsView" class="view">
+          <div class="section-heading">
+            <span class="competition">TOURNAMENT STANDINGS</span>
+            <h2>Points Table</h2>
+          </div>
+          <div class="panel">
+            <div class="table-responsive">
+              <table class="data-table" id="pointsTable">
+                <thead><tr><th>Pos</th><th>Team</th><th class="text-right">P</th><th class="text-right">W</th><th class="text-right">L</th><th class="text-right">T</th><th class="text-right">PTS</th><th class="text-right">NRR</th><th class="text-center">Form</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 4: SCHEDULE & FIXTURES -->
+        <section id="scheduleView" class="view">
+          <div class="section-heading">
+            <span class="competition">TOURNAMENT FIXTURES</span>
+            <h2>Schedule & Matches</h2>
+          </div>
+          <div id="knockoutBracketTreeContainer"></div>
+          <div class="schedule-grid" id="scheduleList"></div>
+        </section>
+
+        <!-- VIEW 5: TEAMS & PLAYERS -->
+        <section id="teamsView" class="view">
+          <div class="section-heading">
+            <span class="competition">PARTICIPATING TEAMS</span>
+            <h2>Teams & Players</h2>
+          </div>
+          <div class="teams-grid" id="teamsContainer"></div>
+        </section>
+
+        <!-- VIEW 6: LEADERBOARDS -->
+        <section id="leaderboardsView" class="view">
+          <div class="section-heading">
+            <span class="competition">STATISTICS & CAP HOLDERS</span>
+            <h2>Tournament Leaderboards</h2>
+          </div>
+          <div class="leaderboards-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+            <div class="panel cap-card">
+              <div class="panel-title"><h3>Orange Cap (Top Batsman)</h3></div>
+              <strong id="orangeCapLeader" style="font-size: 20px; color: var(--gold); display: block;">Arjun Mehta</strong>
+              <small class="muted">Leading run-scorer across all tournament fixtures</small>
+            </div>
+            <div class="panel cap-card">
+              <div class="panel-title"><h3>Purple Cap (Top Bowler)</h3></div>
+              <strong id="purpleCapLeader" style="font-size: 20px; color: var(--purple); display: block;">Dev Malhotra</strong>
+              <small class="muted">Leading wicket-taker across all tournament fixtures</small>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 7: MATCH SUMMARY & AWARDS -->
+        <section id="summaryView" class="view">
+          <div class="section-heading">
+            <span class="competition">MATCH RECAP & AWARDS</span>
+            <h2>Match Summary</h2>
+          </div>
+          <div class="panel mb-4">
+            <div class="panel-title"><h3>Player of the Match (POTM)</h3></div>
+            <strong id="summaryPotm" style="font-size: 22px; color: var(--gold); display: block; margin-bottom: 8px;">Player</strong>
+            <button class="btn btn-primary btn-sm" id="exportScorecardBtn">Export Match Scorecard (TXT)</button>
+          </div>
+        </section>
+
+        <!-- VIEW 8: ALL TOURNAMENTS -->
+        <section id="allTournamentsView" class="view">
+          <div class="section-heading">
+            <span class="competition">ALL TOURNAMENTS DIRECTORY</span>
+            <h2>Tournament Directory</h2>
+          </div>
+          <div class="dir-filter-bar mb-4">
+            <button class="tab-btn dir-tab-btn active" data-filter="all">All Tournaments</button>
+            <button class="tab-btn dir-tab-btn" data-filter="running">Running</button>
+            <button class="tab-btn dir-tab-btn" data-filter="completed">Completed</button>
+          </div>
+          <div class="tournaments-grid" id="tournamentsDirectoryGrid"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="toast" role="status"></div>
+
+    <script src="shared.js?v=38"></script>
+    <script src="user.js?v=38"></script>
+  </body>
+</html>

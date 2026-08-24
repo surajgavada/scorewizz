@@ -242,6 +242,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   ensureValidActiveMatch();
+  initAuth();
   setupEventListeners();
   renderAllViews();
 });
@@ -2565,9 +2566,6 @@ function setupEventListeners() {
   const wktBtn = document.querySelector('[data-wicket]');
   if (wktBtn) wktBtn.onclick = () => openWicketModal('Caught');
 
-  const roBtn = document.querySelector('[data-runout]');
-  if (roBtn) roBtn.onclick = () => openWicketModal('Run Out');
-
   const undoBtn = document.querySelector('#undoButton');
   if (undoBtn) undoBtn.onclick = () => undoLastBall();
 
@@ -4489,4 +4487,103 @@ function renderAllTournamentsView() {
       </div>
     `;
   }).join('');
+}
+
+// ----------------------------------------------------
+// AUTH & FULL-SCREEN LOGIN SYSTEM
+// ----------------------------------------------------
+
+function initAuth() {
+  const authFullscreenPage = document.querySelector('#authFullscreenPage');
+  const appShell = document.querySelector('#appShell');
+  const userRoleBadge = document.querySelector('#userRoleBadge');
+  const userNameDisplay = document.querySelector('#userNameDisplay');
+  const logoutBtn = document.querySelector('#logoutBtn');
+
+  const tabSignIn = document.querySelector('#authTabSignIn');
+  const tabSignUp = document.querySelector('#authTabSignUp');
+  const roleSelectGroup = document.querySelector('#fsRoleGroup');
+  const submitAuthBtn = document.querySelector('#fsAuthSubmitBtn');
+  const guestAuthBtn = document.querySelector('#fsGuestBtn');
+  const authForm = document.querySelector('#authFullscreenForm');
+  const authUsername = document.querySelector('#fsAuthUsername');
+  const authPassword = document.querySelector('#fsAuthPassword');
+  const authRoleSelect = document.querySelector('#fsAuthRole');
+
+  let isSignUpMode = false;
+
+  const updateAuthUI = () => {
+    let sessionUser = null;
+    try {
+      sessionUser = JSON.parse(sessionStorage.getItem('scorewizz_session_user'));
+    } catch (e) {}
+
+    if (sessionUser && sessionUser.username) {
+      if (authFullscreenPage) authFullscreenPage.style.setProperty('display', 'none', 'important');
+      if (appShell) appShell.style.setProperty('display', 'flex', 'important');
+
+      if (userNameDisplay) userNameDisplay.textContent = sessionUser.username;
+      if (userRoleBadge) {
+        userRoleBadge.textContent = sessionUser.role || 'Scorer';
+        userRoleBadge.className = `badge ${sessionUser.role === 'Viewer' ? 'badge-ghost' : 'badge-primary'}`;
+      }
+    } else {
+      if (authFullscreenPage) authFullscreenPage.style.setProperty('display', 'flex', 'important');
+      if (appShell) appShell.style.setProperty('display', 'none', 'important');
+    }
+  };
+
+  if (guestAuthBtn) {
+    guestAuthBtn.onclick = () => {
+      const guestObj = { username: 'Guest User', role: 'Viewer', loggedInAt: new Date().toISOString() };
+      sessionStorage.setItem('scorewizz_session_user', JSON.stringify(guestObj));
+      updateAuthUI();
+      renderAllViews();
+      showToast('Welcome! Continuing as Guest Viewer');
+    };
+  }
+
+  if (tabSignIn && tabSignUp) {
+    tabSignIn.onclick = () => {
+      isSignUpMode = false;
+      tabSignIn.classList.add('active');
+      tabSignUp.classList.remove('active');
+      if (roleSelectGroup) roleSelectGroup.style.display = 'none';
+      if (submitAuthBtn) submitAuthBtn.textContent = 'Sign In';
+    };
+
+    tabSignUp.onclick = () => {
+      isSignUpMode = true;
+      tabSignUp.classList.add('active');
+      tabSignIn.classList.remove('active');
+      if (roleSelectGroup) roleSelectGroup.style.display = 'block';
+      if (submitAuthBtn) submitAuthBtn.textContent = 'Create Account';
+    };
+  }
+
+  if (authForm) {
+    authForm.onsubmit = (e) => {
+      e.preventDefault();
+      const username = (authUsername?.value || '').trim() || 'Admin';
+      const role = isSignUpMode ? (authRoleSelect?.value || 'Scorer') : 'Scorer';
+      const userObj = { username, role, loggedInAt: new Date().toISOString() };
+      sessionStorage.setItem('scorewizz_session_user', JSON.stringify(userObj));
+      updateAuthUI();
+      renderAllViews();
+      showToast(`Welcome, ${username}! Signed in as ${role}`);
+    };
+  }
+
+  if (logoutBtn) {
+    logoutBtn.onclick = () => {
+      sessionStorage.removeItem('scorewizz_session_user');
+      try { localStorage.removeItem('scorewizz_user'); } catch (e) {}
+      updateAuthUI();
+      if (authUsername) authUsername.value = '';
+      if (authPassword) authPassword.value = '';
+      showToast('Signed out. Please sign in again');
+    };
+  }
+
+  updateAuthUI();
 }
