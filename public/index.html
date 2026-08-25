@@ -22,53 +22,7 @@
     </script>
   </head>
   <body>
-    <!-- FULL SCREEN CENTERED LOGIN / SIGN IN PAGE -->
-    <div class="auth-fullscreen-page" id="authFullscreenPage">
-      <div class="auth-box">
-        <div class="auth-brand">
-          <div class="auth-logo-badge">SW</div>
-          <h1 class="auth-title">ScoreWizz</h1>
-          <p class="auth-subtitle">Cricket Tournament Engine & Live Scoring</p>
-        </div>
-
-        <div class="auth-card">
-          <div class="auth-tabs">
-            <button class="auth-tab-btn active" id="authTabSignIn">Sign In</button>
-            <button class="auth-tab-btn" id="authTabSignUp">Sign Up</button>
-          </div>
-
-          <form id="authFullscreenForm" onsubmit="return false;">
-            <div class="form-group mb-3">
-              <label>Username</label>
-              <input type="text" id="fsAuthUsername" class="form-control" placeholder="Enter username" required autocomplete="username" />
-            </div>
-
-            <div class="form-group mb-3">
-              <label>Password / PIN</label>
-              <input type="password" id="fsAuthPassword" class="form-control" placeholder="Enter password or PIN" required autocomplete="current-password" />
-            </div>
-
-            <div class="form-group mb-3" id="fsRoleGroup" style="display: none;">
-              <label>Account Role</label>
-              <select id="fsAuthRole" class="form-control">
-                <option value="Scorer">Official Scorer / Admin</option>
-                <option value="Viewer">Spectator / Viewer</option>
-              </select>
-            </div>
-
-            <button type="submit" class="btn btn-primary w-full" id="fsAuthSubmitBtn" style="padding: 12px; font-size: 15px; font-weight: 700; margin-top: 8px;">Sign In</button>
-            <button type="button" class="btn btn-ghost w-full" id="fsGuestBtn" style="margin-top: 8px; font-size: 13px;">Continue as Guest →</button>
-          </form>
-        </div>
-
-        <div class="auth-footer-note">
-          <span>Offline Ready • High Performance</span>
-        </div>
-      </div>
-    </div>
-
-
-    <div class="app-shell" id="appShell" style="display: none;">
+    <div class="app-shell" id="appShell">
       <!-- SIDEBAR NAVIGATION -->
       <aside class="sidebar">
         <div class="brand">
@@ -127,16 +81,9 @@
         <!-- TOPBAR -->
         <header class="topbar">
           <div class="topbar-left">
-            <p class="eyebrow" id="topbarEyebrow">Premier T20 Championship 2026</p>
             <h1 id="pageTitle">Live Scoreboard</h1>
           </div>
           <div class="top-actions">
-            <div id="userProfileChip" style="display: flex; align-items: center; gap: 8px;">
-              <span class="badge-status" id="userRoleBadge" style="background: rgba(59, 130, 246, 0.15); color: var(--blue);">Scorer</span>
-              <span id="userNameDisplay" style="font-weight: 600; font-size: 13px; color: var(--ink);">Admin</span>
-              <button class="btn btn-xs btn-ghost" id="logoutBtn" title="Sign Out" style="color: var(--coral);">Sign Out</button>
-            </div>
-
             <span class="live-status" id="liveStatusBadge"><i></i> <span id="liveStatusText">LIVE MATCH</span></span>
             <button class="btn btn-sm btn-ghost" id="exportMatchBtn" title="Export Match Scorecard">Export</button>
             <button class="icon-button" id="resetMatchBtn" title="Reset Current Match">↻</button>
@@ -153,35 +100,54 @@
               <p class="muted" id="matchSubheading">Riverside Ground • Toss: Riverside won and chose to bat</p>
             </div>
             <div class="match-heading-right">
+              <button class="btn btn-sm btn-outline" id="openTossBtn" title="Set / Change Toss">Toss</button>
               <span class="innings-tag" id="inningsBadge">1st Innings</span>
               <button class="btn btn-sm btn-outline" id="switchInningsBtn">End Innings</button>
             </div>
           </div>
 
-          <!-- BIG SCORE HERO -->
+          <!-- BIG SCORE HERO (3-COLUMN: BATTING TEAM | CENTER CRR/RRR & TARGET | BOWLING TEAM) -->
           <section class="score-hero">
-            <div class="team-badge" id="battingTeamBadge">RVS</div>
-            <div class="score-copy">
-              <p><span id="battingTeamName">Riverside Strikers</span> <span class="badge-status">BATTING</span></p>
-              <div class="big-score" id="scoreDisplay">0<span>/0</span></div>
-              <div class="overs-wrap">
-                <strong id="oversDisplay">0.0 <small>/ 20 ov</small></strong>
-                <span class="balls-left" id="ballsLeftDisplay">120 balls remaining</span>
+            <!-- Left Side: Batting Team Logo & Score (Runs) -->
+            <div class="score-hero-side score-hero-batting">
+              <div class="team-badge" id="battingTeamBadge">RVS</div>
+              <div class="score-copy">
+                <p><span id="battingTeamName">Riverside Strikers</span> <span class="badge-status">BATTING</span></p>
+                <div class="big-score" id="scoreDisplay">0<span>/0</span></div>
+                <div class="overs-wrap">
+                  <span class="balls-left" id="ballsLeftDisplay">120 balls remaining</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Center: Run Rate Display & Target -->
+            <div class="score-hero-center">
+              <div class="run-rate-card">
+                <div class="rr-item">
+                  <span class="rr-label">CRR</span>
+                  <strong id="runRateDisplay" class="rr-value">0.00</strong>
+                </div>
+                <div class="rr-item" id="requiredRRBox" style="display: none;">
+                  <span class="rr-label">REQ RR</span>
+                  <strong id="reqRunRateDisplay" class="rr-value req-rr">7.25</strong>
+                </div>
               </div>
               <div class="target-card" id="targetCard" style="display: none;">
                 <span class="target-title">TARGET: <strong id="targetRunsDisplay">145</strong></span>
                 <span class="target-sub" id="targetSubDisplay">Need 145 runs from 120 balls</span>
               </div>
             </div>
-            <div class="run-rate-box">
-              <div>
-                <span>Current RR</span>
-                <strong id="runRateDisplay">0.00</strong>
+
+            <!-- Right Side: Bowling Team Logo & Overs Display (Mirrored) -->
+            <div class="score-hero-side score-hero-bowling">
+              <div class="score-copy text-right">
+                <p><span class="badge-status bowling-badge">BOWLING</span> <span id="bowlingTeamName">North Stars</span></p>
+                <div class="big-bowling-status" id="bowlingOversDisplay">0.0 <small>/ 20 ov</small></div>
+                <div class="overs-wrap justify-end">
+                  <strong id="bowlingWicketsDisplay">0 wickets taken</strong>
+                </div>
               </div>
-              <div id="requiredRRBox" style="display: none; margin-top: 8px;">
-                <span>Required RR</span>
-                <strong id="reqRunRateDisplay" class="req-rr">7.25</strong>
-              </div>
+              <div class="team-badge bowling-team-badge" id="bowlingTeamBadge">NTS</div>
             </div>
           </section>
 
@@ -189,12 +155,9 @@
           <div class="content-grid">
             <!-- BATSMEN AT CREASE -->
             <section class="panel batters-panel">
-              <div class="panel-title">
-                <div>
-                  <h3>At the crease</h3>
-                  <span class="live-label" id="creaseLabel">● ON STRIKE: <span id="onStrikeName">Striker</span></span>
-                </div>
+              <div class="panel-title" style="justify-content: flex-end; margin-bottom: 4px;">
                 <div class="top-actions">
+                  <button class="btn btn-xs btn-outline" id="retiredHurtBtn" title="Retire Batsman Hurt / Injured" style="color: var(--coral); border-color: rgba(237, 106, 78, 0.4);">Retired Hurt</button>
                   <button class="btn btn-xs btn-outline" id="selectBatsmenBtn">Select Batsmen</button>
                   <button class="btn btn-xs btn-ghost" id="swapStrikeCreaseBtn" title="Swap Strike">⇄ Swap Strike</button>
                 </div>
@@ -212,7 +175,7 @@
                 <div class="batter-row striker" id="strikerRow">
                   <div class="batter-info">
                     <strong id="strikerName">Arjun Mehta</strong>
-                    <small class="striker-pill">● Striker</small>
+                    <small class="striker-pill" id="strikerRoleLabel">Batter • Striker</small>
                   </div>
                   <strong id="strikerRuns">0</strong>
                   <span id="strikerBalls">0</span>
@@ -224,7 +187,7 @@
                 <div class="batter-row" id="nonStrikerRow">
                   <div class="batter-info">
                     <strong id="nonStrikerName">Rohan Kapoor</strong>
-                    <small>Non-striker</small>
+                    <small id="nonStrikerRoleLabel">Batter • Non-striker</small>
                   </div>
                   <strong id="nonStrikerRuns">0</strong>
                   <span id="nonStrikerBalls">0</span>
@@ -365,9 +328,8 @@
               <button data-extra="LB" class="extra-button">LB<small>LEG BYE</small></button>
               <button data-extra="B" class="extra-button">B<small>BYE</small></button>
               
-              <!-- Wicket & Run Out -->
+              <!-- Wicket -->
               <button data-wicket="true" class="wicket-button">W<small>WICKET</small></button>
-              <button data-runout="true" class="wicket-button runout-button" style="background: rgba(249, 115, 22, 0.15); color: #f97316; border-color: rgba(249, 115, 22, 0.35);">RO<small>RUN OUT</small></button>
             </div>
           </section>
 
@@ -969,6 +931,74 @@
 
     <!-- ==================== MODALS ==================== -->
 
+    <!-- 0. MATCH TOSS MODAL -->
+    <div class="modal-backdrop" id="tossModal">
+      <div class="modal-card" style="max-width: 480px;">
+        <div class="modal-header">
+          <div>
+            <span class="competition" style="color: var(--gold); font-size: 11px;">PRE-MATCH TOSS</span>
+            <h3 id="tossModalTitle" style="font-size: 18px; margin-top: 2px;">Team 1 vs Team 2</h3>
+          </div>
+          <button class="modal-close" id="closeTossModalBtn" title="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="muted mb-3" style="font-size: 12px;">Select which team won the toss and their elected decision:</p>
+          
+          <!-- 1. Who Won the Toss? -->
+          <div class="form-group mb-3">
+            <label style="font-size: 11px;">1. Who Won the Toss?</label>
+            <div class="toss-team-options" id="tossTeamOptions" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px;">
+              <label class="toss-select-card active" id="tossTeam1Card">
+                <input type="radio" name="tossWinnerTeam" id="tossWinnerTeam1" value="team1" checked style="display: none;">
+                <div class="toss-card-inner">
+                  <div class="team-badge" id="tossTeam1Badge" style="width: 34px; height: 34px; font-size: 13px;">T1</div>
+                  <strong id="tossTeam1Name" style="font-size: 13px; color: var(--ink);">Team 1</strong>
+                </div>
+              </label>
+              <label class="toss-select-card" id="tossTeam2Card">
+                <input type="radio" name="tossWinnerTeam" id="tossWinnerTeam2" value="team2" style="display: none;">
+                <div class="toss-card-inner">
+                  <div class="team-badge" id="tossTeam2Badge" style="width: 34px; height: 34px; font-size: 13px; background: var(--blue); color: #fff;">T2</div>
+                  <strong id="tossTeam2Name" style="font-size: 13px; color: var(--ink);">Team 2</strong>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- 2. Elected To? -->
+          <div class="form-group mb-3">
+            <label style="font-size: 11px;">2. Elected Decision?</label>
+            <div class="toss-decision-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px;">
+              <label class="toss-select-card active" id="tossChoiceBatCard">
+                <input type="radio" name="tossChoice" id="tossChoiceBat" value="bat" checked style="display: none;">
+                <div class="toss-card-inner">
+                  <span class="badge-status" style="font-size: 11px; padding: 4px 8px;">BAT FIRST</span>
+                  <small class="muted" style="font-size: 10px; margin-top: 3px;">Will Bat in 1st Innings</small>
+                </div>
+              </label>
+              <label class="toss-select-card" id="tossChoiceBowlCard">
+                <input type="radio" name="tossChoice" id="tossChoiceBowl" value="bowl" style="display: none;">
+                <div class="toss-card-inner">
+                  <span class="badge-status bowling-badge" style="font-size: 11px; padding: 4px 8px;">BOWL FIRST</span>
+                  <small class="muted" style="font-size: 10px; margin-top: 3px;">Will Bowl in 1st Innings</small>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Toss Result Live Summary -->
+          <div class="panel" style="background: var(--bg-card-alt); border: 1px dashed var(--line-light); padding: 10px 14px; border-radius: var(--radius-sm);">
+            <small class="award" style="color: var(--gold); font-size: 10px; margin-bottom: 2px;">TOSS DECISION PREVIEW</small>
+            <div id="tossDecisionPreviewText" style="font-weight: 700; font-size: 13px; color: var(--ink);">Team 1 won the toss and elected to BAT first</div>
+          </div>
+        </div>
+        <div class="modal-footer" style="justify-content: space-between;">
+          <button class="btn btn-ghost" id="cancelTossModalBtn" style="font-size: 12px;">Cancel</button>
+          <button class="btn btn-primary" id="confirmTossBtn" style="font-weight: 700; padding: 10px 20px;">Confirm & Start Match →</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 1. TOURNAMENT SETUP WIZARD MODAL -->
     <div class="modal-backdrop" id="tournamentWizardModal">
       <div class="modal-card modal-wizard-full">
@@ -1203,9 +1233,9 @@
             <input type="text" id="wktFielderName" class="form-control" placeholder="Fielder name (optional)" />
           </div>
           <div class="form-group">
-            <label>Select Next Incoming Batter</label>
-            <select id="wktNextBatter" class="form-control">
-              <!-- Remaining squad batters -->
+            <label style="font-size: 11px;">Select Next Incoming Batter (Suggested by Role: Batsmen, All-Rounders, Bowlers last)</label>
+            <select id="wktNextBatter" class="form-control" style="font-size: 13px; padding: 10px 12px; height: auto;">
+              <!-- Remaining squad batters sorted by Batsmen -> All-Rounders -> Bowlers last -->
             </select>
           </div>
         </div>
@@ -1218,23 +1248,23 @@
 
     <!-- 2B. BATSMAN SELECTION MODAL (Striker & Non-Striker) -->
     <div class="modal-backdrop" id="batsmanModal">
-      <div class="modal-card">
+      <div class="modal-card" style="max-width: 500px;">
         <div class="modal-header">
           <div>
-            <span class="competition">CREASE MANAGEMENT</span>
-            <h3>Select Batsmen at Crease</h3>
+            <span class="competition" style="color: var(--gold); font-size: 11px;">CREASE MANAGEMENT</span>
+            <h3 style="margin-top: 2px;">Select Batsmen at Crease</h3>
           </div>
-          <button class="modal-close" id="closeBatsmanModalBtn"></button>
+          <button class="modal-close" id="closeBatsmanModalBtn" title="Close"></button>
         </div>
         <div class="modal-body">
-          <p class="muted">Choose the on-strike batsman and non-striker from the batting lineup.</p>
+          <p class="muted mb-3" style="font-size: 12px;">Choose the on-strike batsman and non-striker from the batting lineup (suggested by role: Batsmen first, All-Rounders, Bowlers last).</p>
           <div class="form-group">
-            <label>Striker (On Strike)</label>
-            <select id="selectStrikerDropdown" class="form-control"></select>
+            <label style="font-size: 11px;">Striker (On Strike)</label>
+            <select id="selectStrikerDropdown" class="form-control" style="font-size: 13px; padding: 10px 12px; height: auto;"></select>
           </div>
           <div class="form-group">
-            <label>Non-Striker</label>
-            <select id="selectNonStrikerDropdown" class="form-control"></select>
+            <label style="font-size: 11px;">Non-Striker</label>
+            <select id="selectNonStrikerDropdown" class="form-control" style="font-size: 13px; padding: 10px 12px; height: auto;"></select>
           </div>
         </div>
         <div class="modal-footer">
@@ -1244,24 +1274,152 @@
       </div>
     </div>
 
-    <!-- 3. BOWLER SELECTOR MODAL -->
-    <div class="modal-backdrop" id="bowlerModal">
-      <div class="modal-card">
+    <!-- 2C. NEW INCOMING BATSMAN MODAL -->
+    <div class="modal-backdrop" id="newBatsmanModal">
+      <div class="modal-card" style="max-width: 500px;">
         <div class="modal-header">
-          <h3>Select Bowler for Next Over</h3>
-          <button class="modal-close" id="closeBowlerModalBtn"></button>
+          <div>
+            <span class="competition" style="color: var(--coral); font-size: 11px;">WICKET FALLEN</span>
+            <h3 style="margin-top: 2px;">Select New Incoming Batsman</h3>
+          </div>
+          <button class="modal-close" id="closeNewBatsmanModalBtn" title="Close"></button>
         </div>
         <div class="modal-body">
-          <p class="muted">Choose a bowler from the bowling team (consecutive overs by same bowler not allowed).</p>
+          <p class="muted mb-3" id="newBatsmanModalSubtitle" style="font-size: 12px;">A wicket has fallen. Please select the next batsman to walk in to the crease before resuming play.</p>
+          
+          <div id="newBatsmanSuggestionBanner" class="panel mb-3" style="background: rgba(237, 106, 78, 0.08); border: 1px solid rgba(237, 106, 78, 0.35); padding: 10px 14px; border-radius: var(--radius-sm); display: none;">
+            <small class="award" style="color: var(--coral); font-size: 10px; margin-bottom: 3px;">TOP SUGGESTED BATSMAN</small>
+            <div id="newBatsmanSuggestionText" style="font-size: 13px; color: var(--ink);">Player Name (Batter)</div>
+          </div>
+
           <div class="form-group">
-            <label>Select Bowler</label>
-            <select id="nextBowlerSelect" class="form-control">
-              <!-- Bowling team players -->
+            <label style="font-size: 11px;">Incoming Batsman</label>
+            <select id="selectNewIncomingBatterDropdown" class="form-control" style="font-size: 13px; padding: 10px 12px; height: auto;">
+              <!-- Dynamic options: Pure Batsmen -> All-Rounders -> Bowlers last -->
             </select>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-primary" id="confirmBowlerBtn">Start Over</button>
+          <button class="btn btn-primary" id="confirmNewBatsmanModalBtn" style="font-weight: 700; padding: 10px 20px;">Send In Batsman & Resume Play →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. BOWLER SELECTOR MODAL -->
+    <div class="modal-backdrop" id="bowlerModal">
+      <div class="modal-card" style="max-width: 500px;">
+        <div class="modal-header">
+          <div>
+            <span class="competition" style="color: var(--blue); font-size: 11px;">OVER COMPLETED</span>
+            <h3 style="margin-top: 2px;">Select Bowler for Next Over</h3>
+          </div>
+          <button class="modal-close" id="closeBowlerModalBtn" title="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="muted mb-3" id="bowlerModalSubtitle" style="font-size: 12px;">Choose a bowler from the bowling team (consecutive overs by same bowler not allowed).</p>
+          
+          <!-- Recommendation Box based on Best Economy -->
+          <div id="bowlerSuggestionBanner" class="panel mb-3" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.35); padding: 10px 14px; border-radius: var(--radius-sm); display: none;">
+            <small class="award" style="color: var(--mint); font-size: 10px; margin-bottom: 3px;">TOP SUGGESTION (BEST ECONOMY)</small>
+            <div id="bowlerSuggestionText" style="font-size: 13px; color: var(--ink);">Bowler Name (Bowler) • 2.0 ov, 2/14 • Econ: 7.00</div>
+          </div>
+
+          <div class="form-group">
+            <label style="font-size: 11px;">Select Bowler</label>
+            <select id="nextBowlerSelect" class="form-control" style="font-size: 13px; padding: 10px 12px; height: auto;">
+              <!-- Dynamic Bowler & All-Rounder options (Economy sorted) followed by Batters -->
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="confirmBowlerBtn" style="font-weight: 700; padding: 10px 20px;">Confirm Bowler & Start Over →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2D. RETIRED HURT / BATSMAN SUBSTITUTION MODAL -->
+    <div class="modal-backdrop" id="retiredHurtModal">
+      <div class="modal-card" style="max-width: 500px;">
+        <div class="modal-header">
+          <div>
+            <span class="competition" style="color: var(--coral); font-size: 11px;">BATSMAN RETIRING / SUBSTITUTION</span>
+            <h3 style="margin-top: 2px;">Change Batsman Without Out</h3>
+          </div>
+          <button class="modal-close" id="closeRetiredHurtModalBtn" title="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="muted mb-3" style="font-size: 12px;" id="retiredHurtSubtitle">Batsman is leaving the crease without being dismissed. Select the reason and incoming batsman:</p>
+
+          <div class="form-group">
+            <label style="font-size: 11px;">Batsman Leaving Crease</label>
+            <select id="retiredHurtOutgoingSelect" class="form-control" style="font-size: 13px; padding: 10px 12px; height: auto;">
+              <!-- Current Striker / Non-Striker -->
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label style="font-size: 11px;">Retirement Reason</label>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+              <label class="schedule-option active" id="reasonOptRetiredHurt" style="padding: 10px 14px; cursor: pointer;">
+                <input type="radio" name="retirementReason" value="retired_hurt" checked />
+                <div class="opt-content">
+                  <strong style="font-size: 13px;">Retired Hurt (Injured / Illness)</strong>
+                  <p class="muted" style="font-size: 11px; margin: 2px 0 0 0;">Batsman leaves field due to injury or illness. Not counted as a lost wicket.</p>
+                </div>
+              </label>
+              <label class="schedule-option" id="reasonOptRetiredOut" style="padding: 10px 14px; cursor: pointer;">
+                <input type="radio" name="retirementReason" value="retired_out" />
+                <div class="opt-content">
+                  <strong style="font-size: 13px;">Retired Out (Tactical / Out)</strong>
+                  <p class="muted" style="font-size: 11px; margin: 2px 0 0 0;">Batsman voluntarily retires without injury. Recorded as out (+1 wicket).</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label style="font-size: 11px;">Incoming Batsman (Suggested by Role: Batsmen, All-Rounders, Bowlers last)</label>
+            <select id="retiredHurtIncomingSelect" class="form-control" style="font-size: 13px; padding: 10px 12px; height: auto;">
+              <!-- Role sorted candidates -->
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="cancelRetiredHurtModalBtn">Cancel</button>
+          <button class="btn btn-primary" id="confirmRetiredHurtModalBtn" style="font-weight: 700; padding: 10px 20px;">Confirm & Send In Batsman →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3B. MID-OVER BOWLER INJURY MODAL -->
+    <div class="modal-backdrop" id="bowlerInjuryModal">
+      <div class="modal-card" style="max-width: 500px;">
+        <div class="modal-header">
+          <div>
+            <span class="competition" style="color: #ef4444; font-size: 11px;">MID-OVER BOWLER INJURY</span>
+            <h3 style="margin-top: 2px;">Bowler Injured Mid-Over?</h3>
+          </div>
+          <button class="modal-close" id="closeBowlerInjuryModalBtn" title="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="panel mb-3" style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.35); padding: 12px 14px; border-radius: var(--radius-sm);">
+            <div id="bowlerInjuryPromptText" style="font-size: 13px; color: var(--ink); line-height: 1.5;">
+              Bowler has bowled in this over. Under cricket rules (Law 17.8), changing bowler mid-over is only allowed if the bowler is injured or unable to continue.
+            </div>
+          </div>
+
+          <p class="muted mb-3" style="font-size: 12px;">Confirming injury will record partial figures and allow a replacement bowler to complete the remaining balls:</p>
+
+          <div class="form-group">
+            <label style="font-size: 11px;">Replacement Bowler (Best Economy First, Batters Last)</label>
+            <select id="bowlerInjuryReplacementSelect" class="form-control" style="font-size: 13px; padding: 10px 12px; height: auto;">
+              <!-- Economy ranked replacement bowlers -->
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="cancelBowlerInjuryModalBtn">Cancel (Keep Current Bowler)</button>
+          <button class="btn btn-danger" id="confirmBowlerInjuryModalBtn" style="font-weight: 700; padding: 10px 20px;">Confirm Injured & Replace →</button>
         </div>
       </div>
     </div>

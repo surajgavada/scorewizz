@@ -21,6 +21,8 @@
   --gold-light: #fffbeb;
   --mint: #10b981;
   --mint-light: #ecfdf5;
+  --emerald: #059669;
+  --emerald-dark: #047857;
   --blue: #3b82f6;
   --purple: #8b5cf6;
   --red: #ef4444;
@@ -313,8 +315,9 @@ button {
 }
 
 .btn-success {
-  background: var(--mint);
+  background: #047857;
   color: #fff;
+  border: 1px solid #065f46;
 }
 
 .btn-danger {
@@ -760,6 +763,26 @@ body.dark-theme .target-sub {
   color: rgba(255, 255, 255, 0.75);
 }
 
+body.dark-theme .boundary { color: #fbbf24; }
+body.dark-theme .six { color: #34d399; }
+body.dark-theme .wicket-button { color: #f87171; }
+body.dark-theme .extra-button { color: var(--coral); }
+body.dark-theme .ball-strip .ball-four, body.dark-theme .timeline-ball.ball-four { color: #fbbf24; }
+body.dark-theme .ball-strip .ball-six, body.dark-theme .timeline-ball.ball-six { color: #34d399; }
+body.dark-theme .ball-strip .ball-wicket, body.dark-theme .timeline-ball.ball-wicket { color: #f87171; }
+body.dark-theme .form-w { color: #34d399; }
+body.dark-theme .form-l { color: #f87171; }
+body.dark-theme .form-t { color: #fbbf24; }
+body.dark-theme .status-upcoming { color: #60a5fa; }
+body.dark-theme .status-live { color: #f87171; }
+body.dark-theme .status-completed { color: #34d399; }
+body.dark-theme .mots-stat-pill strong { color: #ffffff; }
+body.dark-theme .cap-stat strong { color: #ffffff; }
+body.dark-theme .badge-captain { color: var(--gold); }
+body.dark-theme .badge-vice-captain { color: #60a5fa; }
+body.dark-theme .player-initials { color: #fbbf24; }
+body.dark-theme .player-initials.dark { color: #60a5fa; }
+
 /* COMPLETED MATCH SUMMARY ON SCOREBOARD */
 .scoreboard-summary-panel {
   background: #ffffff;
@@ -1027,27 +1050,27 @@ body.dark-theme .scoreboard-summary-panel {
 }
 
 .ball-strip .ball-four, .timeline-ball.ball-four {
-  background: rgba(245, 158, 11, 0.2);
-  border-color: var(--gold);
-  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+  color: #b45309;
 }
 
 .ball-strip .ball-six, .timeline-ball.ball-six {
-  background: rgba(16, 185, 129, 0.2);
-  border-color: var(--mint);
-  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+  color: #047857;
 }
 
 .ball-strip .ball-wicket, .timeline-ball.ball-wicket {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: var(--red);
-  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #ef4444;
+  color: #b91c1c;
 }
 
 .ball-strip .ball-extra, .timeline-ball.ball-extra {
-  background: rgba(237, 106, 78, 0.2);
+  background: rgba(237, 106, 78, 0.15);
   border-color: var(--coral);
-  color: var(--coral);
+  color: #c2410c;
 }
 
 .bowler-foot {
@@ -1096,7 +1119,8 @@ body.dark-theme .scoreboard-summary-panel {
   font-family: 'DM Sans', sans-serif;
   font-size: 7px;
   letter-spacing: 0.08em;
-  color: var(--ink-faint);
+  color: var(--ink-muted);
+  font-weight: 700;
   margin-top: 1px;
 }
 
@@ -1116,8 +1140,8 @@ body.dark-theme .scoreboard-summary-panel {
 
 .boundary {
   background: rgba(245, 158, 11, 0.12);
-  border-color: rgba(245, 158, 11, 0.4);
-  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #b45309;
 }
 
 .boundary:hover {
@@ -1126,8 +1150,8 @@ body.dark-theme .scoreboard-summary-panel {
 
 .six {
   background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.4);
-  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #047857;
 }
 
 .six:hover {
@@ -1135,17 +1159,17 @@ body.dark-theme .scoreboard-summary-panel {
 }
 
 .extra-button {
-  color: var(--coral);
+  color: #c2410c;
 }
 
 .wicket-button {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #b91c1c;
 }
 
 .wicket-button:hover {
-  background: rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.22);
 }
 
 .undo-button {
@@ -1352,9 +1376,9 @@ body.dark-theme .scoreboard-summary-panel {
   margin-right: 3px;
 }
 
-.form-w { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-.form-l { background: rgba(239, 68, 68, 0.2); color: #f87171; }
-.form-t { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.form-w { background: rgba(16, 185, 129, 0.15); color: #047857; font-weight: 700; }
+.form-l { background: rgba(239, 68, 68, 0.15); color: #b91c1c; font-weight: 700; }
+.form-t { background: rgba(245, 158, 11, 0.15); color: #b45309; font-weight: 700; }
 
 .nrr-info-card {
   background: var(--bg-card);
@@ -1416,9 +1440,9 @@ body.dark-theme .scoreboard-summary-panel {
   text-transform: uppercase;
 }
 
-.status-upcoming { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-.status-live { background: rgba(239, 68, 68, 0.15); color: #f87171; }
-.status-completed { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+.status-upcoming { background: rgba(59, 130, 246, 0.15); color: #1d4ed8; }
+.status-live { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
+.status-completed { background: rgba(16, 185, 129, 0.15); color: #047857; }
 
 .fixture-matchup {
   display: flex;
@@ -1476,9 +1500,9 @@ body.dark-theme .scoreboard-summary-panel {
 }
 
 .team-pill-btn.active {
-  background: var(--bg-card-alt);
+  background: var(--coral);
   border-color: var(--coral);
-  color: #fff;
+  color: #ffffff;
 }
 
 .team-header-panel {
@@ -1615,7 +1639,7 @@ body.dark-theme .scoreboard-summary-panel {
 .mots-stat-pill strong {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 18px;
-  color: #fff;
+  color: var(--ink);
   margin-top: 2px;
 }
 
@@ -1717,7 +1741,7 @@ body.dark-theme .scoreboard-summary-panel {
 .cap-stat strong {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 28px;
-  color: #fff;
+  color: var(--ink);
   display: block;
   line-height: 1;
 }
@@ -1920,6 +1944,36 @@ body.dark-theme .scoreboard-summary-panel {
   max-height: 88vh;
   display: flex;
   flex-direction: column;
+}
+
+/* TOSS MODAL CARDS */
+.toss-select-card {
+  border: 2px solid var(--line);
+  background: var(--bg-card-alt);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: block;
+}
+
+.toss-select-card:hover {
+  border-color: var(--line-light);
+  transform: translateY(-1px);
+}
+
+.toss-select-card.active {
+  border-color: var(--coral);
+  background: rgba(237, 106, 78, 0.08);
+  box-shadow: var(--shadow-sm);
+}
+
+.toss-card-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
 }
 
 .modal-card.modal-wizard-full {
@@ -2253,25 +2307,37 @@ body.dark-theme .scoreboard-summary-panel {
 }
 
 .badge-captain {
-  background: rgba(245, 158, 11, 0.2);
-  color: var(--gold);
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
   border: 1px solid rgba(245, 158, 11, 0.4);
 }
 
 .badge-vice-captain {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
   border: 1px solid rgba(59, 130, 246, 0.4);
 }
 
-.btn-success {
-  background: var(--emerald);
-  color: #fff;
-  border: none;
+.btn-success,
+#wizLaunchBtn {
+  background: #047857 !important;
+  color: #ffffff !important;
+  border: 1px solid #065f46 !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  padding: 10px 22px !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: 0 2px 8px rgba(4, 120, 87, 0.35) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  letter-spacing: 0.3px !important;
 }
 
-.btn-success:hover {
-  background: #059669;
+.btn-success:hover,
+#wizLaunchBtn:hover {
+  background: #065f46 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(4, 120, 87, 0.45) !important;
 }
 
 .schedule-options {
