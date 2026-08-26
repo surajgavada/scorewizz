@@ -55,7 +55,7 @@ function renderAllViews() {
 // SCORING ENGINE
 // ----------------------------------------------------
 
-function recordBall(runsScored, extraType = null, isWicket = false, wicketType = 'Caught', outBatterId = null, extraRuns = 0) {
+function recordBall(runsScored, extraType = null, isWicket = false, wicketType = 'Caught', outBatterId = null, extraRuns = 0, wicketDetails = null) {
   const match = appState.activeMatch;
   if (!match || match.is_match_completed) return;
 
@@ -135,7 +135,26 @@ function recordBall(runsScored, extraType = null, isWicket = false, wicketType =
     const dismissedBatter = inn.batters.find((b) => b.player_id === (outBatterId || inn.striker_id)) || striker;
     if (dismissedBatter) {
       dismissedBatter.is_out = true;
-      dismissedBatter.dismissal = `${wicketType} b ${bowler?.name || 'Bowler'}`;
+      const bName = bowler?.name || 'Bowler';
+      let disStr = `b ${bName}`;
+      if (wicketType === 'Caught') {
+        disStr = wicketDetails?.isCaughtAndBowled || wicketDetails?.fielder === bName ? `c & b ${bName}` : (wicketDetails?.fielder ? `c ${wicketDetails.fielder} b ${bName}` : `c & b ${bName}`);
+      } else if (wicketType === 'Run Out') {
+        if (wicketDetails?.fielder && wicketDetails?.assistFielder) {
+          disStr = `run out (${wicketDetails.fielder} / ${wicketDetails.assistFielder})`;
+        } else if (wicketDetails?.fielder) {
+          disStr = `run out (${wicketDetails.fielder})`;
+        } else {
+          disStr = 'run out';
+        }
+      } else if (wicketType === 'LBW') {
+        disStr = `lbw b ${bName}`;
+      } else if (wicketType === 'Stumped') {
+        disStr = wicketDetails?.fielder ? `st ${wicketDetails.fielder} b ${bName}` : `st b ${bName}`;
+      } else if (wicketType === 'Hit Wicket') {
+        disStr = `hit wicket b ${bName}`;
+      }
+      dismissedBatter.dismissal = disStr;
     }
 
     if (wicketType !== 'Run Out' && bowler) {
@@ -366,9 +385,113 @@ function openWicketModal(defaultType = 'Caught') {
   const modal = document.querySelector('#wicketModal');
   const wktType = document.querySelector('#wktType');
   const wktBatter = document.querySelector('#wktDismissedBatter');
+  const fielderGroup = document.querySelector('#wktFielderGroup');
+  const fielderLabel = document.querySelector('#wktFielderLabel');
+  const fielderSelect = document.querySelector('#wktFielderSelect');
+  const assistGroup = document.querySelector('#wktRunOutAssistGroup');
+  const assistSelect = document.querySelector('#wktRunOutAssistSelect');
+  const roGroup = document.querySelector('#wktRunOutRunsGroup');
   const inn = getCurrentInnings();
 
-  if (wktType) wktType.value = defaultType;
+  if (!inn) return;
+
+  const curBowler = inn.bowlers.find((b) => b.player_id === inn.current_bowler_id) || inn.bowlers[0];
+
+  function updateAdminFielderOptions(dismissalType) {
+    if (!fielderSelect) return;
+    fielderSelect.innerHTML = '';
+    if (assistSelect) assistSelect.innerHTML = '';
+
+    if (dismissalType === 'Caught') {
+      if (fielderGroup) fielderGroup.style.display = 'block';
+      if (fielderLabel) fielderLabel.textContent = 'Fielder Who Took the Catch (from Playing 11)';
+      if (roGroup) roGroup.style.display = 'none';
+      if (assistGroup) assistGroup.style.display = 'none';
+
+      const cbGroup = document.createElement('optgroup');
+      cbGroup.label = 'Caught & Bowled';
+      if (curBowler) {
+        const opt = document.createElement('option');
+        opt.value = `cb_${curBowler.player_id}`;
+        opt.textContent = `${curBowler.name} (Bowler - Caught & Bowled)`;
+        cbGroup.appendChild(opt);
+      }
+      fielderSelect.appendChild(cbGroup);
+
+      const fieldersGroup = document.createElement('optgroup');
+      fieldersGroup.label = 'Fielders & Wicketkeeper (Playing 11)';
+      inn.bowlers.forEach((p) => {
+        if (p.player_id === curBowler?.player_id) return;
+        const opt = document.createElement('option');
+        opt.value = p.player_id;
+        opt.textContent = `${p.name} (${p.role || 'Fielder'})`;
+        fieldersGroup.appendChild(opt);
+      });
+      fielderSelect.appendChild(fieldersGroup);
+
+    } else if (dismissalType === 'Run Out') {
+      if (fielderGroup) fielderGroup.style.display = 'block';
+      if (fielderLabel) fielderLabel.textContent = 'Fielder Who Effected the Run Out (Thrower / Direct Hit)';
+      if (roGroup) roGroup.style.display = 'block';
+      if (assistGroup) assistGroup.style.display = 'block';
+
+      const directGroup = document.createElement('optgroup');
+      directGroup.label = 'Fielding Playing 11 (Thrower / Fielder)';
+      inn.bowlers.forEach((p) => {
+        const opt = document.createElement('option');
+        opt.value = p.player_id;
+        opt.textContent = `${p.name} (${p.role || 'Fielder'})`;
+        directGroup.appendChild(opt);
+      });
+      fielderSelect.appendChild(directGroup);
+
+      if (assistSelect) {
+        const noneOpt = document.createElement('option');
+        noneOpt.value = '';
+        noneOpt.textContent = 'None (Direct Hit / Solo Run Out)';
+        assistSelect.appendChild(noneOpt);
+
+        const assistOptGroup = document.createElement('optgroup');
+        assistOptGroup.label = 'Assisting Fielder / Wicketkeeper';
+        inn.bowlers.forEach((p) => {
+          const opt = document.createElement('option');
+          opt.value = p.player_id;
+          opt.textContent = `${p.name} (${p.role || 'Fielder'})`;
+          assistOptGroup.appendChild(opt);
+        });
+        assistSelect.appendChild(assistOptGroup);
+      }
+
+    } else if (dismissalType === 'Stumped') {
+      if (fielderGroup) fielderGroup.style.display = 'block';
+      if (fielderLabel) fielderLabel.textContent = 'Wicketkeeper (Stumping)';
+      if (roGroup) roGroup.style.display = 'none';
+      if (assistGroup) assistGroup.style.display = 'none';
+
+      const stGroup = document.createElement('optgroup');
+      stGroup.label = 'Wicketkeeper & Fielders (Playing 11)';
+      inn.bowlers.forEach((p) => {
+        const isKeeper = (p.role || '').toLowerCase().includes('keeper') || (p.role || '').toLowerCase().includes('wk');
+        const opt = document.createElement('option');
+        opt.value = p.player_id;
+        opt.textContent = `${p.name} (${p.role || 'Fielder'})${isKeeper ? ' — (Wicketkeeper)' : ''}`;
+        if (isKeeper) opt.selected = true;
+        stGroup.appendChild(opt);
+      });
+      fielderSelect.appendChild(stGroup);
+
+    } else {
+      if (fielderGroup) fielderGroup.style.display = 'none';
+      if (roGroup) roGroup.style.display = 'none';
+      if (assistGroup) assistGroup.style.display = 'none';
+    }
+  }
+
+  if (wktType) {
+    wktType.value = defaultType;
+    updateAdminFielderOptions(defaultType);
+    wktType.onchange = () => updateAdminFielderOptions(wktType.value);
+  }
 
   if (wktBatter && inn) {
     wktBatter.innerHTML = '';
@@ -380,9 +503,6 @@ function openWicketModal(defaultType = 'Caught') {
       wktBatter.appendChild(opt);
     });
   }
-
-  const roGroup = document.querySelector('#wktRunOutRunsGroup');
-  if (roGroup) roGroup.style.display = defaultType === 'Run Out' ? 'block' : 'none';
 
   if (modal) modal.classList.add('active');
 }
@@ -1187,8 +1307,50 @@ function setupEventListeners() {
       const type = document.querySelector('#wktType')?.value || 'Caught';
       const batterId = document.querySelector('#wktDismissedBatter')?.value;
       const roRuns = parseInt(document.querySelector('#wktRunOutRuns')?.value || '0', 10);
+      const fielderVal = document.querySelector('#wktFielderSelect')?.value;
+      const assistVal = document.querySelector('#wktRunOutAssistSelect')?.value;
+
+      const inn = getCurrentInnings();
+      let fielderName = '';
+      let assistName = '';
+      let isCaughtAndBowled = false;
+
+      if (inn) {
+        if (type === 'Caught') {
+          if (fielderVal && fielderVal.startsWith('cb_')) {
+            isCaughtAndBowled = true;
+            const bId = fielderVal.replace('cb_', '');
+            const bow = inn.bowlers.find((p) => p.player_id === bId);
+            fielderName = bow ? bow.name : '';
+          } else if (fielderVal) {
+            const fPlayer = inn.bowlers.find((p) => p.player_id === fielderVal);
+            fielderName = fPlayer ? fPlayer.name : '';
+          }
+        } else if (type === 'Run Out') {
+          if (fielderVal) {
+            const fPlayer = inn.bowlers.find((p) => p.player_id === fielderVal);
+            fielderName = fPlayer ? fPlayer.name : '';
+          }
+          if (assistVal && assistVal !== fielderVal) {
+            const aPlayer = inn.bowlers.find((p) => p.player_id === assistVal);
+            assistName = aPlayer ? aPlayer.name : '';
+          }
+        } else if (type === 'Stumped') {
+          if (fielderVal) {
+            const fPlayer = inn.bowlers.find((p) => p.player_id === fielderVal);
+            fielderName = fPlayer ? fPlayer.name : '';
+          }
+        }
+      }
+
       closeWicketModal();
-      recordBall(roRuns, null, true, type, batterId);
+      recordBall(roRuns, null, true, type, batterId, 0, {
+        type,
+        outBatterId: batterId,
+        fielder: fielderName,
+        assistFielder: assistName,
+        isCaughtAndBowled
+      });
     };
   }
 

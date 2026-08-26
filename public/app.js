@@ -22,7 +22,10 @@ const appState = {
     scheduleType: 'auto',
     manualFixtures: []
   },
-  selectedTeamTabId: null
+  selectedTeamTabId: null,
+  userRole: null,
+  adminName: localStorage.getItem('scorewizz_admin_name') || 'Suraj',
+  viewerName: localStorage.getItem('scorewizz_viewer_name') || 'Viewer'
 };
 
 // 15-player rich squad defaults per team
@@ -217,6 +220,132 @@ async function apiFetch(endpoint, method = 'GET', data = null) {
 }
 
 // ----------------------------------------------------
+// AUTHENTICATION & ACCESS CONTROL (ADMIN vs VIEWER)
+// ----------------------------------------------------
+
+window.handleAdminLogin = function () {
+  const nameInput = document.querySelector('#adminNameInput');
+  const enteredName = (nameInput?.value || '').trim();
+
+  if (!enteredName) {
+    showToast('Please enter your Admin name to log in.');
+    if (nameInput) nameInput.focus();
+    return;
+  }
+
+  const registeredName = localStorage.getItem('scorewizz_registered_admin_name') || 'Suraj';
+
+  if (
+    enteredName.toLowerCase() === registeredName.toLowerCase() ||
+    enteredName.toLowerCase() === 'admin' ||
+    enteredName.toLowerCase() === 'suraj'
+  ) {
+    appState.adminName = enteredName;
+    localStorage.setItem('scorewizz_admin_name', enteredName);
+    localStorage.setItem('scorewizz_registered_admin_name', enteredName);
+    applyUserRole('admin', enteredName, true);
+  } else {
+    showToast(`Name "${enteredName}" not recognized as Admin. Enter "${registeredName}" to login, or continue as Viewer.`);
+    if (nameInput) {
+      nameInput.focus();
+      nameInput.select();
+    }
+  }
+};
+
+window.handleViewerLogin = function () {
+  const nameInput = document.querySelector('#viewerNameInput');
+  const name = (nameInput?.value || '').trim() || 'Viewer';
+
+  appState.viewerName = name;
+  localStorage.setItem('scorewizz_viewer_name', name);
+  applyUserRole('viewer', name, true);
+};
+
+function initUserRole() {
+  const savedRole = localStorage.getItem('scorewizz_user_role');
+  if (savedRole === 'admin' || savedRole === 'viewer') {
+    const savedName = savedRole === 'admin'
+      ? (localStorage.getItem('scorewizz_admin_name') || 'Suraj')
+      : (localStorage.getItem('scorewizz_viewer_name') || 'Viewer');
+    applyUserRole(savedRole, savedName, false);
+  } else {
+    showLoginScreen();
+  }
+}
+
+function showLoginScreen() {
+  const screen = document.querySelector('#loginScreen');
+  if (screen) {
+    screen.style.display = 'flex';
+    const registeredName = localStorage.getItem('scorewizz_registered_admin_name') || localStorage.getItem('scorewizz_admin_name') || 'Suraj';
+    
+    const label = document.querySelector('#registeredAdminLabel');
+    if (label) label.textContent = registeredName;
+
+    const nameInput = document.querySelector('#adminNameInput');
+    if (nameInput) {
+      nameInput.value = registeredName;
+    }
+    const viewerNameInput = document.querySelector('#viewerNameInput');
+    if (viewerNameInput) {
+      viewerNameInput.value = localStorage.getItem('scorewizz_viewer_name') || '';
+    }
+  }
+}
+
+function hideLoginScreen() {
+  const screen = document.querySelector('#loginScreen');
+  if (screen) screen.style.display = 'none';
+}
+
+function applyUserRole(role, userName = null, notify = true) {
+  appState.userRole = role;
+  localStorage.setItem('scorewizz_user_role', role);
+
+  if (!userName) {
+    userName = role === 'admin'
+      ? (localStorage.getItem('scorewizz_admin_name') || appState.adminName || 'Suraj')
+      : (localStorage.getItem('scorewizz_viewer_name') || appState.viewerName || 'Viewer');
+  }
+
+  if (role === 'admin') {
+    appState.adminName = userName;
+    localStorage.setItem('scorewizz_admin_name', userName);
+  } else {
+    appState.viewerName = userName;
+    localStorage.setItem('scorewizz_viewer_name', userName);
+  }
+
+  document.body.classList.remove('role-admin', 'role-viewer');
+  document.body.classList.add(`role-${role}`);
+
+  const pill = document.querySelector('#userRolePill');
+  if (pill) {
+    pill.textContent = role === 'admin' ? `Admin: ${userName}` : `Viewer: ${userName}`;
+    pill.className = `user-role-pill ${role}`;
+  }
+
+  const sidebarUserName = document.querySelector('#sidebarUserName');
+  if (sidebarUserName) {
+    sidebarUserName.textContent = userName;
+  }
+
+  const sidebarLabel = document.querySelector('#sidebarRoleLabel');
+  if (sidebarLabel) {
+    sidebarLabel.textContent = role === 'admin' ? 'Role: Admin (Full Access)' : 'Role: Viewer (Read Only)';
+    sidebarLabel.style.color = role === 'admin' ? 'var(--coral)' : 'var(--blue)';
+  }
+
+  hideLoginScreen();
+  renderAllViews();
+
+  if (notify) {
+    showToast(role === 'admin' ? `Logged in as Admin (${userName}) - Full Scoring Active` : `Logged in as Viewer (${userName}) - Read Only Active`);
+  }
+}
+
+// ----------------------------------------------------
 // INITIALIZATION
 // ----------------------------------------------------
 
@@ -243,6 +372,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   ensureValidActiveMatch();
   setupEventListeners();
+  initUserRole();
   renderAllViews();
 });
 
@@ -567,16 +697,306 @@ function generateKnockoutSchedule(teams, tournamentId) {
 }
 
 // ----------------------------------------------------
+// PRE-MATCH PLAYING 11 ENGINE
+// ----------------------------------------------------
+
+let p11Context = null;
+
+function openPlaying11Modal(team1, team2, oversLimit = 20, fixtureId = null, onComplete = null) {
+  const modal = document.querySelector('#playing11Modal');
+  if (!modal) return;
+
+  const t1Squad = JSON.parse(JSON.stringify(team1.players && team1.players.length > 0 ? team1.players : (DEFAULT_SAMPLE_TEAMS.find((t) => t.name === team1.name)?.players || DEFAULT_SAMPLE_TEAMS[0].players)));
+  const t2Squad = JSON.parse(JSON.stringify(team2.players && team2.players.length > 0 ? team2.players : (DEFAULT_SAMPLE_TEAMS.find((t) => t.name === team2.name)?.players || DEFAULT_SAMPLE_TEAMS[1].players)));
+
+  const curMatch = appState.activeMatch;
+  if (curMatch && (curMatch.team1_playing11 || curMatch.innings1?.batters) && curMatch.team1?.id === team1.id && curMatch.team2?.id === team2.id) {
+    const t1PIds = (curMatch.team1_playing11 || (curMatch.innings1.batting_team_id === team1.id ? curMatch.innings1.batters : curMatch.innings1.bowlers)).map(p => p.player_id || p.id);
+    const t2PIds = (curMatch.team2_playing11 || (curMatch.innings1.batting_team_id === team2.id ? curMatch.innings1.batters : curMatch.innings1.bowlers)).map(p => p.player_id || p.id);
+    t1Squad.forEach((p, idx) => {
+      p.selected = t1PIds.includes(p.id) || (t1PIds.length === 0 && idx < 11);
+    });
+    t2Squad.forEach((p, idx) => {
+      p.selected = t2PIds.includes(p.id) || (t2PIds.length === 0 && idx < 11);
+    });
+  } else {
+    t1Squad.forEach((p, idx) => {
+      if (typeof p.selected !== 'boolean') p.selected = idx < 11;
+    });
+    t2Squad.forEach((p, idx) => {
+      if (typeof p.selected !== 'boolean') p.selected = idx < 11;
+    });
+  }
+
+  p11Context = {
+    team1,
+    team2,
+    oversLimit,
+    fixtureId,
+    onComplete,
+    activeTab: 'team1',
+    team1Players: t1Squad,
+    team2Players: t2Squad
+  };
+
+  renderPlaying11ModalUI();
+  modal.classList.add('show');
+}
+
+function closePlaying11Modal() {
+  const modal = document.querySelector('#playing11Modal');
+  if (modal) modal.classList.remove('show');
+}
+
+function renderPlaying11ModalUI() {
+  if (!p11Context) return;
+
+  const t1 = p11Context.team1;
+  const t2 = p11Context.team2;
+  const activeTab = p11Context.activeTab;
+
+  const titleEl = document.querySelector('#playing11ModalTitle');
+  if (titleEl) titleEl.textContent = `${t1.name} vs ${t2.name} - Playing 11`;
+
+  const t1Count = p11Context.team1Players.filter((p) => p.selected).length;
+  const t2Count = p11Context.team2Players.filter((p) => p.selected).length;
+
+  // Tabs
+  const tab1 = document.querySelector('#p11TabTeam1');
+  const tab2 = document.querySelector('#p11TabTeam2');
+  const tab1Name = document.querySelector('#p11TabTeam1Name');
+  const tab2Name = document.querySelector('#p11TabTeam2Name');
+  const tab1Badge = document.querySelector('#p11TabTeam1Badge');
+  const tab2Badge = document.querySelector('#p11TabTeam2Badge');
+  const tab1CountEl = document.querySelector('#p11TabTeam1Count');
+  const tab2CountEl = document.querySelector('#p11TabTeam2Count');
+
+  if (tab1) tab1.classList.toggle('active', activeTab === 'team1');
+  if (tab2) tab2.classList.toggle('active', activeTab === 'team2');
+
+  if (tab1Name) tab1Name.textContent = t1.name;
+  if (tab2Name) tab2Name.textContent = t2.name;
+
+  if (tab1Badge) {
+    tab1Badge.textContent = t1.short_name || t1.name.substring(0, 3).toUpperCase();
+    tab1Badge.style.background = t1.color || 'var(--gold)';
+    tab1Badge.style.color = '#fff';
+  }
+  if (tab2Badge) {
+    tab2Badge.textContent = t2.short_name || t2.name.substring(0, 3).toUpperCase();
+    tab2Badge.style.background = t2.color || 'var(--blue)';
+    tab2Badge.style.color = '#fff';
+  }
+
+  if (tab1CountEl) tab1CountEl.textContent = `(${t1Count}/11)`;
+  if (tab2CountEl) tab2CountEl.textContent = `(${t2Count}/11)`;
+
+  // Active Team Content
+  const curTeam = activeTab === 'team1' ? t1 : t2;
+  const curPlayers = activeTab === 'team1' ? p11Context.team1Players : p11Context.team2Players;
+  const curSelectedCount = curPlayers.filter((p) => p.selected).length;
+
+  const activeTitle = document.querySelector('#p11ActiveTeamTitle');
+  if (activeTitle) activeTitle.textContent = `${curTeam.name} Lineup`;
+
+  const countBadge = document.querySelector('#p11CountBadge');
+  if (countBadge) {
+    countBadge.textContent = `${curSelectedCount} / 11 Selected`;
+    countBadge.className = `squad-count-badge ${curSelectedCount === 11 ? 'valid' : 'invalid'}`;
+  }
+
+  const listContainer = document.querySelector('#p11PlayersList');
+  if (listContainer) {
+    listContainer.innerHTML = '';
+    curPlayers.forEach((p, idx) => {
+      const isSel = Boolean(p.selected);
+      const card = document.createElement('div');
+      card.className = `playing11-card ${isSel ? 'selected' : ''}`;
+
+      const pNum = p.player_number ? `#${p.player_number}` : `#${idx + 1}`;
+      let badgeTag = '';
+      if (p.is_captain) badgeTag += '<span class="badge-captain" title="Captain">C</span>';
+      if (p.is_vice_captain) badgeTag += '<span class="badge-vice-captain" title="Vice-Captain">VC</span>';
+
+      card.innerHTML = `
+        <input type="checkbox" ${isSel ? 'checked' : ''} />
+        <span class="player-num-pill">${pNum}</span>
+        <div class="p11-info">
+          <strong>${p.name} ${badgeTag}</strong>
+          <small><span class="player-role-tag" style="margin: 0;">${p.role || 'Batter'}</span></small>
+        </div>
+      `;
+
+      card.onclick = (e) => {
+        e.preventDefault();
+        togglePlayerPlaying11Selection(activeTab, idx);
+      };
+
+      listContainer.appendChild(card);
+    });
+  }
+
+  // Footer status
+  const statusEl = document.querySelector('#p11BothTeamsStatus');
+  if (statusEl) {
+    const t1Valid = t1Count === 11;
+    const t2Valid = t2Count === 11;
+    statusEl.innerHTML = `<span style="color: ${t1Valid ? 'var(--emerald)' : 'var(--coral)'};">${t1.name}: ${t1Count}/11</span> &bull; <span style="color: ${t2Valid ? 'var(--emerald)' : 'var(--coral)'};">${t2.name}: ${t2Count}/11</span>`;
+  }
+}
+
+function togglePlayerPlaying11Selection(teamKey, playerIdx) {
+  if (!p11Context) return;
+  const players = teamKey === 'team1' ? p11Context.team1Players : p11Context.team2Players;
+  const target = players[playerIdx];
+  if (!target) return;
+
+  const currentSelectedCount = players.filter((p) => p.selected).length;
+  if (!target.selected && currentSelectedCount >= 11) {
+    showToast('Maximum 11 players can be selected in Playing XI');
+    renderPlaying11ModalUI();
+    return;
+  }
+
+  target.selected = !target.selected;
+  renderPlaying11ModalUI();
+}
+
+function autoSelectTop11ForActiveTeam() {
+  if (!p11Context) return;
+  const players = p11Context.activeTab === 'team1' ? p11Context.team1Players : p11Context.team2Players;
+  players.forEach((p, idx) => {
+    p.selected = idx < 11;
+  });
+  renderPlaying11ModalUI();
+  showToast('Top 11 players selected for ' + (p11Context.activeTab === 'team1' ? p11Context.team1.name : p11Context.team2.name));
+}
+
+function handleConfirmPlaying11() {
+  if (!p11Context) return;
+
+  const t1Count = p11Context.team1Players.filter((p) => p.selected).length;
+  const t2Count = p11Context.team2Players.filter((p) => p.selected).length;
+
+  if (t1Count !== 11) {
+    p11Context.activeTab = 'team1';
+    renderPlaying11ModalUI();
+    showToast(`Please select exactly 11 players for ${p11Context.team1.name} (Currently: ${t1Count})`);
+    return;
+  }
+
+  if (t2Count !== 11) {
+    p11Context.activeTab = 'team2';
+    renderPlaying11ModalUI();
+    showToast(`Please select exactly 11 players for ${p11Context.team2.name} (Currently: ${t2Count})`);
+    return;
+  }
+
+  const team1Playing11 = p11Context.team1Players.filter((p) => p.selected);
+  const team2Playing11 = p11Context.team2Players.filter((p) => p.selected);
+
+  const ctx = p11Context;
+  closePlaying11Modal();
+
+  const curMatch = appState.activeMatch;
+  if (curMatch && (!ctx.onComplete || typeof ctx.onComplete !== 'function') && curMatch.innings1 && curMatch.innings1.balls === 0 && curMatch.innings2 && curMatch.innings2.balls === 0 && curMatch.team1?.id === ctx.team1.id) {
+    curMatch.team1_playing11 = team1Playing11;
+    curMatch.team2_playing11 = team2Playing11;
+
+    const isBat1Team1 = curMatch.innings1.batting_team_id === ctx.team1.id;
+    const playing11_Bat1 = isBat1Team1 ? team1Playing11 : team2Playing11;
+    const playing11_Bowl1 = isBat1Team1 ? team2Playing11 : team1Playing11;
+
+    curMatch.innings1.batters = playing11_Bat1.map((p, idx) => ({
+      player_id: p.id || `p_b1_${idx + 1}`,
+      player_number: p.player_number || idx + 1,
+      name: p.name,
+      role: p.role || 'Batter',
+      is_captain: Boolean(p.is_captain),
+      is_vice_captain: Boolean(p.is_vice_captain),
+      runs: 0,
+      balls: 0,
+      fours: 0,
+      sixes: 0,
+      is_out: false,
+      dismissal: 'not out',
+      is_striker: idx === 0,
+      is_non_striker: idx === 1
+    }));
+    curMatch.innings1.striker_id = curMatch.innings1.batters[0]?.player_id;
+    curMatch.innings1.non_striker_id = curMatch.innings1.batters[1]?.player_id;
+
+    curMatch.innings1.bowlers = playing11_Bowl1.map((p, idx) => ({
+      player_id: p.id || `p_bw1_${idx + 1}`,
+      player_number: p.player_number || idx + 1,
+      name: p.name,
+      role: p.role || 'Bowler',
+      is_captain: Boolean(p.is_captain),
+      is_vice_captain: Boolean(p.is_vice_captain),
+      legal_balls: 0,
+      maidens: 0,
+      runs: 0,
+      wickets: 0,
+      dots: 0,
+      is_current: idx === playing11_Bowl1.length - 1
+    }));
+    curMatch.innings1.current_bowler_id = curMatch.innings1.bowlers[curMatch.innings1.bowlers.length - 1]?.player_id;
+
+    curMatch.innings2.batters = playing11_Bowl1.map((p, idx) => ({
+      player_id: p.id || `p_bw1_${idx + 1}`,
+      player_number: p.player_number || idx + 1,
+      name: p.name,
+      role: p.role || 'Batter',
+      is_captain: Boolean(p.is_captain),
+      is_vice_captain: Boolean(p.is_vice_captain),
+      runs: 0,
+      balls: 0,
+      fours: 0,
+      sixes: 0,
+      is_out: false,
+      dismissal: 'not out',
+      is_striker: idx === 0,
+      is_non_striker: idx === 1
+    }));
+    curMatch.innings2.striker_id = curMatch.innings2.batters[0]?.player_id;
+    curMatch.innings2.non_striker_id = curMatch.innings2.batters[1]?.player_id;
+
+    curMatch.innings2.bowlers = playing11_Bat1.map((p, idx) => ({
+      player_id: p.id || `p_b1_${idx + 1}`,
+      player_number: p.player_number || idx + 1,
+      name: p.name,
+      role: p.role || 'Bowler',
+      is_captain: Boolean(p.is_captain),
+      is_vice_captain: Boolean(p.is_vice_captain),
+      legal_balls: 0,
+      maidens: 0,
+      runs: 0,
+      wickets: 0,
+      dots: 0,
+      is_current: idx === playing11_Bat1.length - 1
+    }));
+    curMatch.innings2.current_bowler_id = curMatch.innings2.bowlers[curMatch.innings2.bowlers.length - 1]?.player_id;
+
+    saveToLocalStorage();
+    renderAllViews();
+    showToast('Playing 11 lineups updated for both teams!');
+    return;
+  }
+
+  openTossModal(ctx.team1, ctx.team2, ctx.oversLimit, ctx.fixtureId, team1Playing11, team2Playing11, ctx.onComplete);
+}
+
+// ----------------------------------------------------
 // PRE-MATCH TOSS ENGINE & MATCH INITIALIZATION
 // ----------------------------------------------------
 
 let tossContext = null;
 
-function openTossModal(team1, team2, oversLimit = 20, fixtureId = null, onComplete = null) {
+function openTossModal(team1, team2, oversLimit = 20, fixtureId = null, team1Playing11 = null, team2Playing11 = null, onComplete = null) {
   const modal = document.querySelector('#tossModal');
   if (!modal) return;
 
-  tossContext = { team1, team2, oversLimit, fixtureId, onComplete };
+  tossContext = { team1, team2, oversLimit, fixtureId, team1Playing11, team2Playing11, onComplete };
 
   const titleEl = document.querySelector('#tossModalTitle');
   if (titleEl) titleEl.textContent = `${team1.name} vs ${team2.name}`;
@@ -658,7 +1078,9 @@ function handleConfirmToss() {
     tossContext.team2,
     tossContext.oversLimit,
     tossContext.fixtureId,
-    tossObj
+    tossObj,
+    tossContext.team1Playing11,
+    tossContext.team2Playing11
   );
 
   saveToLocalStorage();
@@ -681,12 +1103,12 @@ function initMatchFromFixture(fixture) {
   const t2 = tour.teams.find((t) => t.id === fixture.team2_id) || tour.teams[1 % tour.teams.length];
   const oversLimit = tour.overs || 20;
 
-  openTossModal(t1, t2, oversLimit, fixture.id, (match) => {
+  openPlaying11Modal(t1, t2, oversLimit, fixture.id, (match) => {
     switchView('scoreboard');
   });
 }
 
-function createNewMatchState(team1, team2, oversLimit = 20, fixtureId = null, toss = null) {
+function createNewMatchState(team1, team2, oversLimit = 20, fixtureId = null, toss = null, team1Playing11 = null, team2Playing11 = null) {
   let tossObj = toss;
   if (!tossObj) {
     tossObj = {
@@ -719,14 +1141,20 @@ function createNewMatchState(team1, team2, oversLimit = 20, fixtureId = null, to
     }
   }
 
-  const bat1Players = bat1Team.players && bat1Team.players.length > 0 ? bat1Team.players : (DEFAULT_SAMPLE_TEAMS.find((t) => t.name === bat1Team.name)?.players || DEFAULT_SAMPLE_TEAMS[0].players);
-  const bowl1Players = bowl1Team.players && bowl1Team.players.length > 0 ? bowl1Team.players : (DEFAULT_SAMPLE_TEAMS.find((t) => t.name === bowl1Team.name)?.players || DEFAULT_SAMPLE_TEAMS[1].players);
+  const t1XI = (team1Playing11 && team1Playing11.length === 11)
+    ? team1Playing11
+    : (team1.players && team1.players.length > 0 ? team1.players.slice(0, 11) : (DEFAULT_SAMPLE_TEAMS.find((t) => t.name === team1.name)?.players || DEFAULT_SAMPLE_TEAMS[0].players).slice(0, 11));
 
-  const playing11_Bat1 = bat1Players.slice(0, 11);
-  const playing11_Bowl1 = bowl1Players.slice(0, 11);
+  const t2XI = (team2Playing11 && team2Playing11.length === 11)
+    ? team2Playing11
+    : (team2.players && team2.players.length > 0 ? team2.players.slice(0, 11) : (DEFAULT_SAMPLE_TEAMS.find((t) => t.name === team2.name)?.players || DEFAULT_SAMPLE_TEAMS[1].players).slice(0, 11));
+
+  const playing11_Bat1 = (bat1Team.id === team1.id) ? t1XI : t2XI;
+  const playing11_Bowl1 = (bowl1Team.id === team2.id) ? t2XI : t1XI;
 
   const inn1Batters = playing11_Bat1.map((p, idx) => ({
     player_id: p.id || `p_b1_${idx + 1}`,
+    player_number: p.player_number || idx + 1,
     name: p.name,
     role: p.role || 'Batter',
     is_captain: Boolean(p.is_captain),
@@ -743,6 +1171,7 @@ function createNewMatchState(team1, team2, oversLimit = 20, fixtureId = null, to
 
   const inn1Bowlers = playing11_Bowl1.map((p, idx) => ({
     player_id: p.id || `p_bw1_${idx + 1}`,
+    player_number: p.player_number || idx + 1,
     name: p.name,
     role: p.role || 'Bowler',
     is_captain: Boolean(p.is_captain),
@@ -757,6 +1186,7 @@ function createNewMatchState(team1, team2, oversLimit = 20, fixtureId = null, to
 
   const inn2Batters = playing11_Bowl1.map((p, idx) => ({
     player_id: p.id || `p_bw1_${idx + 1}`,
+    player_number: p.player_number || idx + 1,
     name: p.name,
     role: p.role || 'Batter',
     is_captain: Boolean(p.is_captain),
@@ -773,6 +1203,7 @@ function createNewMatchState(team1, team2, oversLimit = 20, fixtureId = null, to
 
   const inn2Bowlers = playing11_Bat1.map((p, idx) => ({
     player_id: p.id || `p_b1_${idx + 1}`,
+    player_number: p.player_number || idx + 1,
     name: p.name,
     role: p.role || 'Bowler',
     is_captain: Boolean(p.is_captain),
@@ -881,8 +1312,11 @@ function cloneCurrentState() {
 }
 
 function recordBall(runsScored, extraType = null, isWicket = false, wicketDetails = null) {
-  const match = appState.activeMatch;
-  if (!match) ensureValidActiveMatch();
+  let match = appState.activeMatch;
+  if (!match) {
+    ensureValidActiveMatch();
+    match = appState.activeMatch;
+  }
   if (match.is_match_completed) {
     showToast('Match is already completed');
     return;
@@ -1001,13 +1435,25 @@ function recordBall(runsScored, extraType = null, isWicket = false, wicketDetail
       const bName = bowler?.name || 'Bowler';
       let dismissalStr = `b ${bName}`;
       if (wktType === 'Caught') {
-        dismissalStr = wicketDetails?.fielder ? `c ${wicketDetails.fielder} b ${bName}` : `c & b ${bName}`;
+        if (wicketDetails?.isCaughtAndBowled || wicketDetails?.fielder === bName) {
+          dismissalStr = `c & b ${bName}`;
+        } else if (wicketDetails?.fielder) {
+          dismissalStr = `c ${wicketDetails.fielder} b ${bName}`;
+        } else {
+          dismissalStr = `c & b ${bName}`;
+        }
       } else if (wktType === 'Run Out') {
-        dismissalStr = wicketDetails?.fielder ? `run out (${wicketDetails.fielder})` : 'run out';
+        if (wicketDetails?.fielder && wicketDetails?.assistFielder) {
+          dismissalStr = `run out (${wicketDetails.fielder} / ${wicketDetails.assistFielder})`;
+        } else if (wicketDetails?.fielder) {
+          dismissalStr = `run out (${wicketDetails.fielder})`;
+        } else {
+          dismissalStr = 'run out';
+        }
       } else if (wktType === 'LBW') {
         dismissalStr = `lbw b ${bName}`;
       } else if (wktType === 'Stumped') {
-        dismissalStr = `st b ${bName}`;
+        dismissalStr = wicketDetails?.fielder ? `st ${wicketDetails.fielder} b ${bName}` : `st b ${bName}`;
       } else if (wktType === 'Hit Wicket') {
         dismissalStr = `hit wicket b ${bName}`;
       }
@@ -2080,7 +2526,7 @@ function renderFixturesView() {
         ${fix.result_text ? `<div class="fixture-result-note">${fix.result_text}</div>` : `<div class="muted"> ${fix.venue || 'Stadium'}</div>`}
         <div style="margin-top: auto; padding-top: 10px;">
           <button class="btn btn-sm ${isTbd1 || isTbd2 ? 'btn-ghost' : 'btn-outline'} btn-block" onclick="startMatchFromSchedule('${fix.id}')" ${isTbd1 || isTbd2 ? 'style="opacity: 0.6;"' : ''}>
-            ${fix.status === 'completed' ? 'View / Replay Match' : (isTbd1 || isTbd2 ? ' Awaiting Previous Round' : 'Score This Match ->')}
+            ${appState.userRole === 'viewer' ? (fix.status === 'completed' ? 'View Scorecard' : (fix.status === 'live' ? 'View Live Scoreboard' : 'View Match Details')) : (fix.status === 'completed' ? 'View / Replay Match' : (isTbd1 || isTbd2 ? 'Awaiting Previous Round' : 'Score This Match ->'))}
           </button>
         </div>
       `;
@@ -2180,6 +2626,19 @@ window.startMatchFromSchedule = function (fixtureId) {
 
   if (String(fix.team1_id).startsWith('TBD') || String(fix.team2_id).startsWith('TBD')) {
     showToast('Teams for this match are not decided yet. Complete earlier round matches first!');
+    return;
+  }
+
+  if (appState.userRole === 'viewer') {
+    const tour = appState.tournament;
+    const t1 = tour.teams.find((t) => t.id === fix.team1_id) || tour.teams[0];
+    const t2 = tour.teams.find((t) => t.id === fix.team2_id) || tour.teams[1 % tour.teams.length];
+    if (!appState.activeMatch || appState.activeMatch.fixture_id !== fix.id) {
+      appState.activeMatch = createNewMatchState(t1, t2, tour.overs || 20, fix.id);
+    }
+    switchView(fix.status === 'completed' ? 'scorecard' : 'scoreboard');
+    renderAllViews();
+    showToast(`Viewing: ${fix.team1_name} vs ${fix.team2_name}`);
     return;
   }
 
@@ -2729,6 +3188,56 @@ function closeExtraRunsModal() {
 // ----------------------------------------------------
 
 function setupEventListeners() {
+  // Authentication & Role Controls
+  const loginAdminBtn = document.querySelector('#loginAdminBtn');
+  if (loginAdminBtn) {
+    loginAdminBtn.onclick = () => window.handleAdminLogin();
+  }
+
+  const adminNameInput = document.querySelector('#adminNameInput');
+  if (adminNameInput) {
+    adminNameInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        window.handleAdminLogin();
+      }
+    };
+  }
+
+  const loginViewerBtn = document.querySelector('#loginViewerBtn');
+  if (loginViewerBtn) {
+    loginViewerBtn.onclick = () => window.handleViewerLogin();
+  }
+
+  const viewerNameInput = document.querySelector('#viewerNameInput');
+  if (viewerNameInput) {
+    viewerNameInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        window.handleViewerLogin();
+      }
+    };
+  }
+
+  const switchRoleBtn = document.querySelector('#switchUserRoleBtn');
+  if (switchRoleBtn) {
+    switchRoleBtn.onclick = () => {
+      showLoginScreen();
+    };
+  }
+
+  const sidebarLogoutBtn = document.querySelector('#sidebarLogoutBtn');
+  if (sidebarLogoutBtn) {
+    sidebarLogoutBtn.onclick = () => {
+      showLoginScreen();
+    };
+  }
+
+  const viewerSwitchBtn = document.querySelector('#viewerSwitchToAdminBtn');
+  if (viewerSwitchBtn) {
+    viewerSwitchBtn.onclick = () => {
+      showLoginScreen();
+    };
+  }
+
   document.querySelectorAll('.nav-item[data-view]').forEach((btn) => {
     btn.onclick = () => switchView(btn.dataset.view);
   });
@@ -2801,6 +3310,48 @@ function setupEventListeners() {
     };
   }
 
+  // Playing 11 Modal Actions
+  const openPlaying11Btn = document.querySelector('#openPlaying11Btn');
+  if (openPlaying11Btn) {
+    openPlaying11Btn.onclick = () => {
+      const match = appState.activeMatch;
+      if (!match) return;
+      openPlaying11Modal(match.team1, match.team2, match.overs_limit, match.fixture_id);
+    };
+  }
+
+  const closeP11Btn = document.querySelector('#closePlaying11ModalBtn');
+  if (closeP11Btn) closeP11Btn.onclick = () => closePlaying11Modal();
+
+  const cancelP11Btn = document.querySelector('#cancelPlaying11ModalBtn');
+  if (cancelP11Btn) cancelP11Btn.onclick = () => closePlaying11Modal();
+
+  const confirmP11Btn = document.querySelector('#confirmPlaying11ModalBtn');
+  if (confirmP11Btn) confirmP11Btn.onclick = () => handleConfirmPlaying11();
+
+  const tabP11T1 = document.querySelector('#p11TabTeam1');
+  if (tabP11T1) {
+    tabP11T1.onclick = () => {
+      if (p11Context) {
+        p11Context.activeTab = 'team1';
+        renderPlaying11ModalUI();
+      }
+    };
+  }
+
+  const tabP11T2 = document.querySelector('#p11TabTeam2');
+  if (tabP11T2) {
+    tabP11T2.onclick = () => {
+      if (p11Context) {
+        p11Context.activeTab = 'team2';
+        renderPlaying11ModalUI();
+      }
+    };
+  }
+
+  const autoFillP11Btn = document.querySelector('#p11AutoFillBtn');
+  if (autoFillP11Btn) autoFillP11Btn.onclick = () => autoSelectTop11ForActiveTeam();
+
   // Pre-Match Toss Button & Actions
   const openTossBtn = document.querySelector('#openTossBtn');
   if (openTossBtn) {
@@ -2867,10 +3418,10 @@ function setupEventListeners() {
   const resetBtn = document.querySelector('#resetMatchBtn');
   if (resetBtn) {
     resetBtn.onclick = () => {
-      if (confirm('Reset this match and decide toss again?')) {
+      if (confirm('Reset this match, re-select Playing 11 and decide toss again?')) {
         const match = appState.activeMatch;
         if (match) {
-          openTossModal(match.team1, match.team2, match.overs_limit, match.fixture_id);
+          openPlaying11Modal(match.team1, match.team2, match.overs_limit, match.fixture_id);
         }
       }
     };
@@ -3254,6 +3805,38 @@ function setupEventListeners() {
   if (searchTourInput) {
     searchTourInput.oninput = () => renderAllTournamentsView();
   }
+
+  // Universal Modal Backdrop Click to Close (when clicking outside modal-card)
+  document.querySelectorAll('.modal-backdrop').forEach((backdrop) => {
+    backdrop.onclick = (e) => {
+      if (e.target === backdrop) {
+        const inn = getCurrentInnings();
+        if (backdrop.id === 'bowlerModal' && inn && inn.needs_bowler_change) {
+          showToast('Please select and confirm the bowler for the next over to continue');
+          return;
+        }
+        if (backdrop.id === 'newBatsmanModal' && inn && inn.needs_batsman_selection) {
+          showToast('Please select the incoming new batsman to resume play');
+          return;
+        }
+        backdrop.classList.remove('show');
+      }
+    };
+  });
+
+  // Universal Escape Key to Close Active Modals
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const activeModals = Array.from(document.querySelectorAll('.modal-backdrop.show'));
+      if (activeModals.length > 0) {
+        const topModal = activeModals[activeModals.length - 1];
+        const inn = getCurrentInnings();
+        if (topModal.id === 'bowlerModal' && inn && inn.needs_bowler_change) return;
+        if (topModal.id === 'newBatsmanModal' && inn && inn.needs_batsman_selection) return;
+        topModal.classList.remove('show');
+      }
+    }
+  });
 }
 
 function switchView(viewName) {
@@ -4336,19 +4919,139 @@ function openWicketModal(defaultType = 'Caught') {
   const dismissTypeEl = document.querySelector('#wktDismissalType');
   const runOutGroup = document.querySelector('#wktRunOutRunsGroup');
   const runOutRuns = document.querySelector('#wktRunOutRuns');
+  const fielderGroup = document.querySelector('#wktFielderGroup');
+  const fielderLabel = document.querySelector('#wktFielderLabel');
+  const fielderSelect = document.querySelector('#wktFielderSelect');
+  const assistGroup = document.querySelector('#wktRunOutAssistGroup');
+  const assistSelect = document.querySelector('#wktRunOutAssistSelect');
+
+  const curBowler = inn.bowlers.find((b) => b.player_id === inn.current_bowler_id) || inn.bowlers[0];
+
+  function updateFielderOptions(dismissalType) {
+    if (!fielderSelect) return;
+    fielderSelect.innerHTML = '';
+    if (assistSelect) assistSelect.innerHTML = '';
+
+    if (dismissalType === 'Caught') {
+      if (fielderGroup) fielderGroup.style.display = 'block';
+      if (fielderLabel) fielderLabel.textContent = 'Fielder Who Took the Catch (from Playing 11)';
+      if (runOutGroup) runOutGroup.style.display = 'none';
+      if (assistGroup) assistGroup.style.display = 'none';
+
+      // Group 1: Caught & Bowled
+      const cbGroup = document.createElement('optgroup');
+      cbGroup.label = 'Caught & Bowled (By Bowler)';
+      if (curBowler) {
+        const opt = document.createElement('option');
+        opt.value = `cb_${curBowler.player_id}`;
+        opt.textContent = `${getPlayerNamePlainText(curBowler)} (${curBowler.role || 'Bowler'} - Caught & Bowled)`;
+        cbGroup.appendChild(opt);
+      }
+      fielderSelect.appendChild(cbGroup);
+
+      // Group 2: Wicketkeeper
+      const keepers = inn.bowlers.filter((p) => (p.role || '').toLowerCase().includes('keeper') || (p.role || '').toLowerCase().includes('wk'));
+      if (keepers.length > 0) {
+        const wkGroup = document.createElement('optgroup');
+        wkGroup.label = 'Wicketkeeper (Behind Stumps)';
+        keepers.forEach((p) => {
+          const opt = document.createElement('option');
+          opt.value = p.player_id;
+          opt.textContent = `${getPlayerNamePlainText(p)} (Wicketkeeper)`;
+          wkGroup.appendChild(opt);
+        });
+        fielderSelect.appendChild(wkGroup);
+      }
+
+      // Group 3: Outfielders & All-Rounders
+      const fieldersGroup = document.createElement('optgroup');
+      fieldersGroup.label = 'Fielders (Fielding Playing 11)';
+      inn.bowlers.forEach((p) => {
+        if (p.player_id === curBowler?.player_id) return;
+        if (keepers.some((k) => k.player_id === p.player_id)) return;
+        const opt = document.createElement('option');
+        opt.value = p.player_id;
+        opt.textContent = `${getPlayerNamePlainText(p)} (${p.role || 'Fielder'})`;
+        fieldersGroup.appendChild(opt);
+      });
+      fielderSelect.appendChild(fieldersGroup);
+
+      // Default select the first non-bowler fielder or keeper
+      const defaultFielder = keepers[0] || inn.bowlers.find((p) => p.player_id !== curBowler?.player_id) || curBowler;
+      if (defaultFielder) {
+        fielderSelect.value = defaultFielder.player_id;
+      }
+
+    } else if (dismissalType === 'Run Out') {
+      if (fielderGroup) fielderGroup.style.display = 'block';
+      if (fielderLabel) fielderLabel.textContent = 'Fielder Who Effected the Run Out (Thrower / Direct Hit)';
+      if (runOutGroup) runOutGroup.style.display = 'block';
+      if (assistGroup) assistGroup.style.display = 'block';
+
+      // Primary Fielder
+      const directGroup = document.createElement('optgroup');
+      directGroup.label = 'Fielding Playing 11 (Thrower / Fielder)';
+      inn.bowlers.forEach((p) => {
+        const opt = document.createElement('option');
+        opt.value = p.player_id;
+        opt.textContent = `${getPlayerNamePlainText(p)} (${p.role || 'Fielder'})`;
+        directGroup.appendChild(opt);
+      });
+      fielderSelect.appendChild(directGroup);
+
+      // Assist Fielder (Optional)
+      if (assistSelect) {
+        const noneOpt = document.createElement('option');
+        noneOpt.value = '';
+        noneOpt.textContent = 'None (Direct Hit / Solo Run Out)';
+        assistSelect.appendChild(noneOpt);
+
+        const assistOptGroup = document.createElement('optgroup');
+        assistOptGroup.label = 'Assisting Fielder / Wicketkeeper';
+        inn.bowlers.forEach((p) => {
+          const opt = document.createElement('option');
+          opt.value = p.player_id;
+          opt.textContent = `${getPlayerNamePlainText(p)} (${p.role || 'Fielder'})`;
+          assistOptGroup.appendChild(opt);
+        });
+        assistSelect.appendChild(assistOptGroup);
+      }
+
+    } else if (dismissalType === 'Stumped') {
+      if (fielderGroup) fielderGroup.style.display = 'block';
+      if (fielderLabel) fielderLabel.textContent = 'Wicketkeeper (Completed Stumping)';
+      if (runOutGroup) runOutGroup.style.display = 'none';
+      if (assistGroup) assistGroup.style.display = 'none';
+
+      const stGroup = document.createElement('optgroup');
+      stGroup.label = 'Wicketkeepers & Fielders (Playing 11)';
+      inn.bowlers.forEach((p) => {
+        const isKeeper = (p.role || '').toLowerCase().includes('keeper') || (p.role || '').toLowerCase().includes('wk');
+        const opt = document.createElement('option');
+        opt.value = p.player_id;
+        opt.textContent = `${getPlayerNamePlainText(p)} (${p.role || 'Fielder'})${isKeeper ? ' — (Wicketkeeper)' : ''}`;
+        if (isKeeper) opt.selected = true;
+        stGroup.appendChild(opt);
+      });
+      fielderSelect.appendChild(stGroup);
+
+    } else {
+      // Bowled, LBW, Hit Wicket
+      if (fielderGroup) fielderGroup.style.display = 'none';
+      if (runOutGroup) runOutGroup.style.display = 'none';
+      if (assistGroup) assistGroup.style.display = 'none';
+    }
+  }
 
   if (dismissTypeEl) {
     dismissTypeEl.value = defaultType;
-    if (runOutGroup) runOutGroup.style.display = defaultType === 'Run Out' ? 'block' : 'none';
+    updateFielderOptions(defaultType);
     dismissTypeEl.onchange = () => {
-      if (runOutGroup) runOutGroup.style.display = dismissTypeEl.value === 'Run Out' ? 'block' : 'none';
+      updateFielderOptions(dismissTypeEl.value);
     };
   }
 
   if (runOutRuns) runOutRuns.value = '0';
-
-  const fielderInput = document.querySelector('#wktFielderName');
-  if (fielderInput) fielderInput.value = '';
 
   const batterSelect = document.querySelector('#wktBatterOut');
   if (batterSelect) {
@@ -4382,11 +5085,44 @@ function closeWicketModal() {
 function handleConfirmWicket() {
   const type = document.querySelector('#wktDismissalType')?.value || 'Bowled';
   const outBatterId = document.querySelector('#wktBatterOut')?.value;
-  const fielder = document.querySelector('#wktFielderName')?.value?.trim() || '';
+  const fielderVal = document.querySelector('#wktFielderSelect')?.value;
+  const assistVal = document.querySelector('#wktRunOutAssistSelect')?.value;
   const nextBatterId = document.querySelector('#wktNextBatter')?.value;
   const runsCompleted = type === 'Run Out' ? Number(document.querySelector('#wktRunOutRuns')?.value || 0) : 0;
 
   const inn = getCurrentInnings();
+  if (!inn) return;
+
+  let fielderName = '';
+  let assistName = '';
+  let isCaughtAndBowled = false;
+
+  if (type === 'Caught') {
+    if (fielderVal && fielderVal.startsWith('cb_')) {
+      isCaughtAndBowled = true;
+      const bId = fielderVal.replace('cb_', '');
+      const bow = inn.bowlers.find((p) => p.player_id === bId);
+      fielderName = bow ? getPlayerNamePlainText(bow) : '';
+    } else if (fielderVal) {
+      const fPlayer = inn.bowlers.find((p) => p.player_id === fielderVal);
+      fielderName = fPlayer ? getPlayerNamePlainText(fPlayer) : '';
+    }
+  } else if (type === 'Run Out') {
+    if (fielderVal) {
+      const fPlayer = inn.bowlers.find((p) => p.player_id === fielderVal);
+      fielderName = fPlayer ? getPlayerNamePlainText(fPlayer) : '';
+    }
+    if (assistVal && assistVal !== fielderVal) {
+      const aPlayer = inn.bowlers.find((p) => p.player_id === assistVal);
+      assistName = aPlayer ? getPlayerNamePlainText(aPlayer) : '';
+    }
+  } else if (type === 'Stumped') {
+    if (fielderVal) {
+      const fPlayer = inn.bowlers.find((p) => p.player_id === fielderVal);
+      fielderName = fPlayer ? getPlayerNamePlainText(fPlayer) : '';
+    }
+  }
+
   const maxWickets = appState.activeMatch?.is_super_over ? 2 : (inn?.batters?.length || 11) - 1;
   const willBeAllOut = inn && (inn.wickets + 1 >= maxWickets);
 
@@ -4396,7 +5132,15 @@ function handleConfirmWicket() {
   }
 
   closeWicketModal();
-  recordBall(runsCompleted, null, true, { type, outBatterId, fielder, nextBatterId, runsCompleted });
+  recordBall(runsCompleted, null, true, {
+    type,
+    outBatterId,
+    fielder: fielderName,
+    assistFielder: assistName,
+    isCaughtAndBowled,
+    nextBatterId,
+    runsCompleted
+  });
 }
 
 // ----------------------------------------------------
@@ -4720,12 +5464,12 @@ function openBowlerInjuryModal() {
 
     if (others.length > 0) {
       const group2 = document.createElement('optgroup');
-      group2.label = 'Part-Time Options / Batters (Suggested Last)';
+      group2.label = 'Part-Time Options / Batters & Wicketkeepers (Suggested Last)';
       others.forEach((item) => {
         const econStr = item.econ !== null ? `Econ: ${item.econ.toFixed(2)}` : '0 ov';
         const opt = document.createElement('option');
         opt.value = item.bw.player_id;
-        opt.textContent = `${getPlayerNamePlainText(item.bw)} (${item.role} - Part-Time) — ${item.oversStr} ov, ${econStr}`;
+        opt.textContent = `${getPlayerNamePlainText(item.bw)} (${item.role}) — ${item.oversStr} ov, ${econStr}`;
         if (specialists.length === 0) opt.selected = true;
         group2.appendChild(opt);
       });
@@ -4919,15 +5663,24 @@ function openBowlerModal() {
       select.appendChild(optGroup2);
     }
 
-    // Group 3: Wicketkeepers
+    // Group 3: Wicketkeepers (Eligible to bowl)
     if (keeperGroup.length > 0) {
       const optGroup3 = document.createElement('optgroup');
-      optGroup3.label = 'Wicketkeepers';
+      optGroup3.label = 'Wicketkeepers (Eligible to Bowl)';
       keeperGroup.forEach((item) => {
+        const isCur = item.bowler.player_id === inn.current_bowler_id;
+        const econStr = item.econ !== null ? `Econ: ${item.econ.toFixed(2)}` : '0 ov';
+        const lastTag = item.isLastBowler ? ' (Bowled last over - Cannot bowl consecutive)' : '';
+        
         const opt = document.createElement('option');
         opt.value = item.bowler.player_id;
-        opt.textContent = `${getPlayerNamePlainText(item.bowler)} (${item.role})`;
-        opt.disabled = true;
+        opt.textContent = `${getPlayerNamePlainText(item.bowler)} (Wicketkeeper) — ${item.oversStr} ov, ${item.wickets}/${item.runs}, ${econStr}${lastTag}`;
+        if (item.isLastBowler) {
+          opt.disabled = true;
+        }
+        if (!topRecommended && isCur) {
+          opt.selected = true;
+        }
         optGroup3.appendChild(opt);
       });
       select.appendChild(optGroup3);
@@ -5010,7 +5763,7 @@ function handleStartQuickMatch() {
   if (!t1 || !t2) return;
 
   closeQuickMatchModal();
-  openTossModal(t1, t2, overs, null, () => {
+  openPlaying11Modal(t1, t2, overs, null, () => {
     switchView('scoreboard');
   });
 }
@@ -5402,7 +6155,7 @@ function renderAllTournamentsView() {
             <button class="btn btn-sm btn-outline" onclick="setActiveTournament('${t.id}'); switchView('fixtures');">Matches</button>
             <button class="btn btn-sm btn-outline" onclick="setActiveTournament('${t.id}'); switchView('pointsTable');">Points</button>
           </div>
-          <button class="btn btn-sm btn-ghost" onclick="deleteTournamentById('${t.id}')" style="color: var(--red); font-size: 12px;" title="Delete Tournament">Delete</button>
+          <button class="btn btn-sm btn-ghost admin-only" onclick="deleteTournamentById('${t.id}')" style="color: var(--red); font-size: 12px;" title="Delete Tournament">Delete</button>
         </div>
       </div>
     `;

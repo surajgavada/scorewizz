@@ -2037,11 +2037,23 @@ body.dark-theme .scoreboard-summary-panel {
   color: var(--ink-muted);
   display: grid;
   place-items: center;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.modal-close::before {
+  content: '✕';
 }
 
 .modal-close:hover {
   background: var(--bg-card-hover);
   color: var(--ink);
+  border-color: var(--coral);
 }
 
 .modal-body {
@@ -2700,4 +2712,296 @@ body.dark-theme .scoreboard-summary-panel {
 body.dark-theme .auth-tab-btn.active {
   background: var(--bg-card);
   color: #ffffff;
+}
+
+/* PRE-MATCH PLAYING 11 STYLES */
+.playing11-team-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.playing11-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.playing11-tab-btn.active {
+  background: var(--bg-card);
+  border-color: var(--coral);
+  color: var(--coral);
+  box-shadow: var(--shadow-sm);
+}
+
+.playing11-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.playing11-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.playing11-card:hover {
+  background: var(--bg-card-hover);
+}
+
+.playing11-card.selected {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.playing11-card input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #047857;
+  cursor: pointer;
+}
+
+.playing11-card .p11-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.playing11-card .p11-info strong {
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playing11-card .p11-info small {
+  font-size: 11px;
+  color: var(--ink-faint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+/* ====================================================
+   LOGIN SCREEN & ACCESS CONTROL (ADMIN vs VIEWER)
+   ==================================================== */
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-app);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+}
+
+.login-container {
+  width: min(840px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: modalScale 0.25s ease-out;
+}
+
+.login-hero {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.login-brand {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 38px;
+  font-weight: 800;
+  color: var(--brand-title);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.login-tagline {
+  font-size: 15px;
+  color: var(--ink-faint);
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+.login-roles-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  width: 100%;
+  max-width: 800px;
+}
+
+@media (max-width: 680px) {
+  .login-roles-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.login-role-card {
+  background: var(--bg-card);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 26px 22px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-md);
+  transition: all 0.2s ease;
+}
+
+.login-role-card:hover {
+  border-color: var(--line-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.login-role-header {
+  margin-bottom: 20px;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.role-badge.admin-badge {
+  background: rgba(237, 106, 78, 0.12);
+  color: var(--coral);
+  border: 1px solid rgba(237, 106, 78, 0.3);
+}
+
+.role-badge.viewer-badge {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--blue);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.login-role-card h3 {
+  font-size: 20px;
+  margin: 0 0 8px 0;
+  color: var(--ink);
+}
+
+.login-role-card p {
+  font-size: 13px;
+  color: var(--ink-faint);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.admin-login-form {
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.login-footer {
+  margin-top: 28px;
+  font-size: 12px;
+  color: var(--ink-faint);
+  text-align: center;
+}
+
+/* User Role Status Pill in Header / Topbar */
+.user-role-badge-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--line);
+  padding: 4px 8px 4px 10px;
+  border-radius: var(--radius-full);
+}
+
+.user-role-pill {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.user-role-pill.admin {
+  color: var(--coral);
+}
+
+.user-role-pill.viewer {
+  color: var(--blue);
+}
+
+/* Viewer Notice Panel on Scoreboard */
+.viewer-scoreboard-notice {
+  background: var(--bg-card-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.viewer-notice-text strong {
+  display: block;
+  font-size: 14px;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.viewer-notice-text small {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+/* Sidebar User Section */
+.sidebar-user-section {
+  padding: 10px 12px;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+
+/* Hide admin elements when user is in viewer mode */
+body.role-viewer .admin-only {
+  display: none !important;
+}
+
+/* Hide viewer elements when user is in admin mode */
+body.role-admin .viewer-only {
+  display: none !important;
 }

@@ -22,6 +22,59 @@
     </script>
   </head>
   <body>
+    <!-- ==================== LOGIN SCREEN ==================== -->
+    <div id="loginScreen" class="login-screen" style="display: none;">
+      <div class="login-container">
+        <div class="login-hero">
+          <div class="login-brand">ScoreWizz</div>
+          <div class="login-tagline">Cricket Tournament & Live Match Centre</div>
+        </div>
+        
+        <div class="login-roles-grid">
+          <!-- Admin Role Card -->
+          <div class="login-role-card" id="adminRoleCard">
+            <div class="login-role-header">
+              <span class="role-badge admin-badge">FULL SCORING ACCESS</span>
+              <h3>Admin / Scorer</h3>
+              <p>Score live matches, manage Playing 11, record wickets, change bowlers, setup tournaments & edit squads.</p>
+            </div>
+            <div class="admin-login-form">
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label for="adminNameInput" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint);">Enter Admin Name</label>
+                <input type="text" id="adminNameInput" class="form-control" placeholder="Enter admin name (e.g. Suraj)..." value="Suraj" />
+                <small id="adminNameHint" style="font-size: 11px; color: var(--ink-faint); margin-top: 4px; display: block;">Registered Admin: <strong id="registeredAdminLabel" style="color: var(--ink);">Suraj</strong></small>
+              </div>
+              <button type="button" class="btn btn-primary btn-block" id="loginAdminBtn" onclick="handleAdminLogin()" style="padding: 12px; font-weight: 700; font-size: 14px; justify-content: center; cursor: pointer;">
+                Enter Admin Portal
+              </button>
+            </div>
+          </div>
+
+          <!-- Viewer Role Card -->
+          <div class="login-role-card" id="viewerRoleCard">
+            <div class="login-role-header">
+              <span class="role-badge viewer-badge">SPECTATOR / FAN</span>
+              <h3>Viewer / Spectator</h3>
+              <p>Look and view live scores, full match scorecards, tournament standings, schedule, leaderboards & player stats.</p>
+            </div>
+            <div class="viewer-login-form" style="margin-top: auto; padding-top: 10px;">
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label for="viewerNameInput" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint);">Viewer Name (Optional)</label>
+                <input type="text" id="viewerNameInput" class="form-control" placeholder="Your name (e.g. Rahul)..." />
+              </div>
+              <button type="button" class="btn btn-outline btn-block" id="loginViewerBtn" onclick="handleViewerLogin()" style="padding: 12px; font-weight: 700; font-size: 14px; justify-content: center; border-color: var(--blue); color: var(--blue); cursor: pointer;">
+                Continue as Viewer
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="login-footer">
+          <span>ScoreWizz Offline-Ready Cricket Tournament & Scoring Centre</span>
+        </div>
+      </div>
+    </div>
+
     <div class="app-shell" id="appShell">
       <!-- SIDEBAR NAVIGATION -->
       <aside class="sidebar">
@@ -29,6 +82,17 @@
           <div class="brand-text">
             <strong>ScoreWizz</strong>
           </div>
+        </div>
+
+        <div class="sidebar-user-section" id="sidebarUserSection">
+          <div class="sidebar-user-info">
+            <small style="font-size: 10px; color: var(--ink-faint); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">USER PROFILE</small>
+            <div style="font-weight: 700; font-size: 13px; color: var(--ink); margin-top: 2px;" id="sidebarUserName">Admin (Suraj)</div>
+            <div style="font-size: 11px; font-weight: 600; color: var(--coral); margin-top: 1px;" id="sidebarRoleLabel">Role: Admin (Full Access)</div>
+          </div>
+          <button class="btn btn-xs btn-outline" id="sidebarLogoutBtn" onclick="showLoginScreen()" style="width: 100%; margin-top: 8px; font-size: 11px; justify-content: center; cursor: pointer;">
+            Switch User / Logout
+          </button>
         </div>
 
         <div class="tournament-badge-mini" id="sidebarTournamentBadge">
@@ -64,10 +128,10 @@
         </nav>
 
         <div class="sidebar-bottom">
-          <button class="btn btn-primary btn-block wizard-btn" id="openWizardBtn">
+          <button class="btn btn-primary btn-block wizard-btn admin-only" id="openWizardBtn">
             <span>＋</span> New Tournament
           </button>
-          <button class="btn btn-secondary btn-block quick-match-btn" id="openQuickMatchBtn">
+          <button class="btn btn-secondary btn-block quick-match-btn admin-only" id="openQuickMatchBtn">
             <span></span> Quick Match
           </button>
           <p class="saved-note">
@@ -84,9 +148,13 @@
             <h1 id="pageTitle">Live Scoreboard</h1>
           </div>
           <div class="top-actions">
+            <div class="user-role-badge-wrap" id="userRoleBadgeWrap">
+              <span class="user-role-pill admin" id="userRolePill">Admin</span>
+              <button class="btn btn-xs btn-ghost" id="switchUserRoleBtn" title="Switch Role / Logout" style="font-size: 11px; padding: 2px 6px;">Switch</button>
+            </div>
             <span class="live-status" id="liveStatusBadge"><i></i> <span id="liveStatusText">LIVE MATCH</span></span>
             <button class="btn btn-sm btn-ghost" id="exportMatchBtn" title="Export Match Scorecard">Export</button>
-            <button class="icon-button" id="resetMatchBtn" title="Reset Current Match">↻</button>
+            <button class="icon-button admin-only" id="resetMatchBtn" title="Reset Current Match">↻</button>
             <button class="theme-toggle" id="themeToggleBtn" title="Toggle Theme">Theme</button>
           </div>
         </header>
@@ -100,9 +168,10 @@
               <p class="muted" id="matchSubheading">Riverside Ground • Toss: Riverside won and chose to bat</p>
             </div>
             <div class="match-heading-right">
-              <button class="btn btn-sm btn-outline" id="openTossBtn" title="Set / Change Toss">Toss</button>
+              <button class="btn btn-sm btn-outline admin-only" id="openPlaying11Btn" title="Playing 11 Lineup">Playing 11</button>
+              <button class="btn btn-sm btn-outline admin-only" id="openTossBtn" title="Set / Change Toss">Toss</button>
               <span class="innings-tag" id="inningsBadge">1st Innings</span>
-              <button class="btn btn-sm btn-outline" id="switchInningsBtn">End Innings</button>
+              <button class="btn btn-sm btn-outline admin-only" id="switchInningsBtn">End Innings</button>
             </div>
           </div>
 
@@ -157,9 +226,9 @@
             <section class="panel batters-panel">
               <div class="panel-title" style="justify-content: flex-end; margin-bottom: 4px;">
                 <div class="top-actions">
-                  <button class="btn btn-xs btn-outline" id="retiredHurtBtn" title="Retire Batsman Hurt / Injured" style="color: var(--coral); border-color: rgba(237, 106, 78, 0.4);">Retired Hurt</button>
-                  <button class="btn btn-xs btn-outline" id="selectBatsmenBtn">Select Batsmen</button>
-                  <button class="btn btn-xs btn-ghost" id="swapStrikeCreaseBtn" title="Swap Strike">⇄ Swap Strike</button>
+                  <button class="btn btn-xs btn-outline admin-only" id="retiredHurtBtn" title="Retire Batsman Hurt / Injured" style="color: var(--coral); border-color: rgba(237, 106, 78, 0.4);">Retired Hurt</button>
+                  <button class="btn btn-xs btn-outline admin-only" id="selectBatsmenBtn">Select Batsmen</button>
+                  <button class="btn btn-xs btn-ghost admin-only" id="swapStrikeCreaseBtn" title="Swap Strike">⇄ Swap Strike</button>
                 </div>
               </div>
               <div class="batter-table">
@@ -207,7 +276,7 @@
             <section class="panel bowler-panel">
               <div class="panel-title">
                 <h3>Bowling</h3>
-                <button class="btn btn-xs btn-outline" id="changeBowlerBtn">Change Bowler</button>
+                <button class="btn btn-xs btn-outline admin-only" id="changeBowlerBtn">Change Bowler</button>
               </div>
               <div class="bowler-card">
                 <div class="bowler-avatar" id="bowlerAvatar">DM</div>
@@ -295,15 +364,26 @@
 
             <!-- Match Actions -->
             <div class="sb-summary-actions">
-              <button class="btn btn-success" id="sbStartNextMatchBtn">Start Next Match</button>
+              <button class="btn btn-success admin-only" id="sbStartNextMatchBtn">Start Next Match</button>
               <button class="btn btn-primary" id="sbViewScorecardBtn">View Full Scorecard</button>
               <button class="btn btn-outline" id="sbViewPointsTableBtn">View Points Table</button>
               <button class="btn btn-ghost" id="sbExportScorecardBtn">Export Scorecard (TXT)</button>
             </div>
           </section>
 
+          <!-- VIEWER MODE NOTICE (Shown on Scoreboard in Viewer Mode) -->
+          <section class="viewer-scoreboard-notice viewer-only" id="viewerScoreboardNotice">
+            <div class="viewer-notice-text">
+              <strong>Viewer Mode Active</strong>
+              <small>Live scores, ball-by-ball timeline, and batsman/bowler figures are updating live. Switch to Admin to score.</small>
+            </div>
+            <button class="btn btn-xs btn-outline" id="viewerSwitchToAdminBtn" style="border-color: var(--coral); color: var(--coral); font-weight: 700;">
+              Switch to Admin
+            </button>
+          </section>
+
           <!-- SCORING CONTROLS PAD -->
-          <section class="panel scoring-panel" id="scoringPanel">
+          <section class="panel scoring-panel admin-only" id="scoringPanel">
             <div class="panel-title">
               <div>
                 <h3>Quick Scoring Controls</h3>
@@ -524,7 +604,7 @@
                   <button class="btn btn-sm btn-primary" id="fixturesListToggleBtn">List View</button>
                   <button class="btn btn-sm btn-outline" id="fixturesBracketToggleBtn">Schedule Graph / Bracket</button>
                 </div>
-                <button class="btn btn-outline btn-sm" id="openAddFixtureModalBtn">＋ Add Match</button>
+                <button class="btn btn-outline btn-sm admin-only" id="openAddFixtureModalBtn">＋ Add Match</button>
               </div>
             </div>
           </div>
@@ -560,7 +640,7 @@
               <p class="muted" id="teamBigInfo">15 Players in Squad • 0 Matches Played</p>
             </div>
             <div>
-              <button class="btn btn-outline btn-sm" id="openEditSquadModalBtn">Edit Team Squad</button>
+              <button class="btn btn-outline btn-sm admin-only" id="openEditSquadModalBtn">Edit Team Squad</button>
             </div>
           </div>
 
@@ -888,7 +968,7 @@
                 <p class="muted">Browse and switch between active, running, and completed tournaments.</p>
               </div>
               <div class="panel-actions">
-                <button class="btn btn-primary" id="allTournamentsCreateBtn">＋ Create New Tournament</button>
+                <button class="btn btn-primary admin-only" id="allTournamentsCreateBtn">＋ Create New Tournament</button>
               </div>
             </div>
 
@@ -931,7 +1011,60 @@
 
     <!-- ==================== MODALS ==================== -->
 
-    <!-- 0. MATCH TOSS MODAL -->
+    <!-- 0A. PRE-MATCH PLAYING 11 SELECTION MODAL -->
+    <div class="modal-backdrop" id="playing11Modal">
+      <div class="modal-card" style="max-width: 620px;">
+        <div class="modal-header">
+          <div>
+            <span class="competition" style="color: var(--blue); font-size: 11px;">PRE-MATCH SETUP</span>
+            <h3 id="playing11ModalTitle" style="font-size: 18px; margin-top: 2px;">Playing 11 Selection</h3>
+          </div>
+          <button class="modal-close" id="closePlaying11ModalBtn" title="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="muted mb-3" id="playing11ModalSubtitle" style="font-size: 12px;">Select exactly 11 players for each team to take the field for this match:</p>
+
+          <!-- Team 1 & Team 2 Switcher Tabs -->
+          <div class="playing11-team-tabs" id="p11TeamTabs" style="display: flex; gap: 8px; margin-bottom: 14px;">
+            <button type="button" class="playing11-tab-btn active" id="p11TabTeam1">
+              <span class="team-badge" id="p11TabTeam1Badge" style="width: 22px; height: 22px; font-size: 10px;">T1</span>
+              <span id="p11TabTeam1Name">Team 1</span>
+              <small id="p11TabTeam1Count">(11/11)</small>
+            </button>
+            <button type="button" class="playing11-tab-btn" id="p11TabTeam2">
+              <span class="team-badge" id="p11TabTeam2Badge" style="width: 22px; height: 22px; font-size: 10px; background: var(--blue); color: #fff;">T2</span>
+              <span id="p11TabTeam2Name">Team 2</span>
+              <small id="p11TabTeam2Count">(11/11)</small>
+            </button>
+          </div>
+
+          <!-- Active Team Playing 11 Config Bar -->
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <strong id="p11ActiveTeamTitle" style="font-size: 14px; color: var(--ink);">Team 1 Lineup</strong>
+              <span id="p11CountBadge" class="squad-count-badge valid">11 / 11 Selected</span>
+            </div>
+            <button type="button" class="btn btn-xs btn-outline" id="p11AutoFillBtn">Auto-Select Top 11</button>
+          </div>
+
+          <!-- Active Team Players Checklist -->
+          <div class="playing11-list" id="p11PlayersList">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+          <div id="p11BothTeamsStatus" style="font-size: 12px; color: var(--ink-muted); font-weight: 600;">
+            Team 1: 11/11 • Team 2: 11/11
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-ghost" id="cancelPlaying11ModalBtn">Cancel</button>
+            <button class="btn btn-primary" id="confirmPlaying11ModalBtn" style="font-weight: 700; padding: 10px 20px;">Proceed to Toss →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 0B. MATCH TOSS MODAL -->
     <div class="modal-backdrop" id="tossModal">
       <div class="modal-card" style="max-width: 480px;">
         <div class="modal-header">
@@ -1229,8 +1362,16 @@
             </select>
           </div>
           <div class="form-group" id="wktFielderGroup">
-            <label>Fielder (Catcher / Run Out)</label>
-            <input type="text" id="wktFielderName" class="form-control" placeholder="Fielder name (optional)" />
+            <label id="wktFielderLabel">Fielder from Playing 11 (Catcher)</label>
+            <select id="wktFielderSelect" class="form-control">
+              <!-- Dynamically populated from fielding team Playing 11 -->
+            </select>
+          </div>
+          <div class="form-group" id="wktRunOutAssistGroup" style="display: none;">
+            <label id="wktRunOutAssistLabel">Assisting Fielder / Wicketkeeper (Optional)</label>
+            <select id="wktRunOutAssistSelect" class="form-control">
+              <!-- Optional assist fielder from Playing 11 -->
+            </select>
           </div>
           <div class="form-group">
             <label style="font-size: 11px;">Select Next Incoming Batter (Suggested by Role: Batsmen, All-Rounders, Bowlers last)</label>
