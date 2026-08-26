@@ -263,15 +263,8 @@ window.handleViewerLogin = function () {
 };
 
 function initUserRole() {
-  const savedRole = localStorage.getItem('scorewizz_user_role');
-  if (savedRole === 'admin' || savedRole === 'viewer') {
-    const savedName = savedRole === 'admin'
-      ? (localStorage.getItem('scorewizz_admin_name') || 'Suraj')
-      : (localStorage.getItem('scorewizz_viewer_name') || 'Viewer');
-    applyUserRole(savedRole, savedName, false);
-  } else {
-    showLoginScreen();
-  }
+  // Always show the login portal on site launch - do not directly enter the main page
+  showLoginScreen();
 }
 
 function showLoginScreen() {
