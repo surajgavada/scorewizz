@@ -36,13 +36,13 @@
             <div class="login-role-header">
               <span class="role-badge admin-badge">FULL SCORING ACCESS</span>
               <h3>Admin / Scorer</h3>
-              <p>Score live matches, manage Playing 11, record wickets, change bowlers, setup tournaments & edit squads.</p>
+              <p>Score live matches, manage Playing 11, and control your private tournaments (isolated per admin).</p>
             </div>
             <div class="admin-login-form">
               <div class="form-group" style="margin-bottom: 16px;">
-                <label for="adminNameInput" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint);">Enter Admin Name</label>
-                <input type="text" id="adminNameInput" class="form-control" placeholder="Enter admin name (e.g. Suraj)..." value="Suraj" />
-                <small id="adminNameHint" style="font-size: 11px; color: var(--ink-faint); margin-top: 4px; display: block;">Registered Admin: <strong id="registeredAdminLabel" style="color: var(--ink);">Suraj</strong></small>
+                <label for="adminNameInput" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint);">Your Admin Name</label>
+                <input type="text" id="adminNameInput" class="form-control" placeholder="Enter admin name (e.g. Suraj, Rahul)..." value="Suraj" />
+                <small id="adminNameHint" style="font-size: 11px; color: var(--ink-faint); margin-top: 4px; display: block;">Each admin gets their own separate, private tournaments.</small>
               </div>
               <button type="button" class="btn btn-primary btn-block" id="loginAdminBtn" onclick="handleAdminLogin()" style="padding: 12px; font-weight: 700; font-size: 14px; justify-content: center; cursor: pointer;">
                 Enter Admin Portal
@@ -161,7 +161,20 @@
 
         <!-- VIEW 1: LIVE SCOREBOARD -->
         <section id="scoreboardView" class="view active-view">
-          <div class="match-heading">
+          <!-- Fresh User Empty State Prompt -->
+          <div id="noTournamentPrompt" class="panel" style="display: none; text-align: center; padding: 48px 24px; border: 2px dashed var(--coral); background: var(--bg-card); margin-bottom: 24px;">
+            <span class="role-badge admin-badge" style="margin-bottom: 12px; display: inline-block;">NEW ADMIN WORKSPACE</span>
+            <h2 style="font-size: 24px; color: var(--ink); margin-bottom: 10px;">Welcome to ScoreWizz!</h2>
+            <p class="muted" style="font-size: 15px; max-width: 540px; margin: 0 auto 24px auto; line-height: 1.6;">
+              You have no active tournament in your workspace yet. Create a tournament to set up your teams, generate match schedules, and start scoring matches.
+            </p>
+            <button type="button" class="btn btn-primary btn-lg admin-only" onclick="openTournamentWizard()" style="padding: 14px 32px; font-size: 16px; font-weight: 700; cursor: pointer;">
+              ＋ Create Your First Tournament
+            </button>
+          </div>
+
+          <div id="scoreboardMainContent">
+            <div class="match-heading">
             <div>
               <span class="competition" id="matchCompetitionTag">T20 LEAGUE • MATCH #1</span>
               <h2 id="matchTitleHeading"><span id="team1NameHead">Riverside Strikers</span> <b>vs</b> <span id="team2NameHead">North Stars</span></h2>
@@ -365,7 +378,7 @@
             <!-- Match Actions -->
             <div class="sb-summary-actions">
               <button class="btn btn-success admin-only" id="sbStartNextMatchBtn">Start Next Match</button>
-              <button class="btn btn-primary" id="sbViewScorecardBtn">View Full Scorecard</button>
+              <button class="btn btn-primary" id="sbViewScorecardBtn">View Result</button>
               <button class="btn btn-outline" id="sbViewPointsTableBtn">View Points Table</button>
               <button class="btn btn-ghost" id="sbExportScorecardBtn">Export Scorecard (TXT)</button>
             </div>
@@ -423,13 +436,17 @@
               <span class="muted" style="padding: 10px;">Match ready to begin. Score the first ball above!</span>
             </div>
           </section>
-        </section>
+        </div>
+      </section>
 
         <!-- VIEW 2: FULL SCORECARD -->
         <section id="scorecardView" class="view">
           <div class="section-heading">
             <span class="competition">OFFICIAL MATCH SCORECARD</span>
             <h2 id="scorecardHeading">Riverside Strikers vs North Stars</h2>
+            <div id="scorecardResultBanner" class="panel" style="display: none; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.4); text-align: center; padding: 12px 16px; margin: 10px 0 16px 0; font-weight: 700; font-size: 16px; color: var(--ink);">
+              Match Result
+            </div>
             <div class="scorecard-tabs">
               <button class="tab-btn active" id="tabInn1">1st Innings</button>
               <button class="tab-btn" id="tabInn2">2nd Innings</button>
@@ -1662,11 +1679,11 @@
         </div>
 
         <div class="victory-actions" style="display: flex; flex-direction: column; gap: 8px;">
+          <button class="btn btn-primary btn-lg" id="viewFullScorecardBtn" style="font-weight: 700; padding: 12px; width: 100%; justify-content: center;">View Result</button>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <button class="btn btn-outline" id="viewFullScorecardBtn">View Scorecard</button>
             <button class="btn btn-outline" id="viewPointsTableBtn">Points Table</button>
+            <button class="btn btn-ghost" id="closeVictoryModalBtn" style="font-size: 13px; padding: 8px;">Close</button>
           </div>
-          <button class="btn btn-ghost" id="closeVictoryModalBtn" style="font-size: 13px; padding: 8px;">Close</button>
         </div>
       </div>
     </div>

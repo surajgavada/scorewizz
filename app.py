@@ -64,7 +64,8 @@ class ScoreWizzHandler(http.server.BaseHTTPRequestHandler):
 
         # API: Tournaments list
         if path == '/api/tournaments':
-            tournaments = database.get_tournaments_list()
+            owner = query.get('owner', [None])[0]
+            tournaments = database.get_tournaments_list(owner=owner)
             return self.send_json(200, tournaments)
 
         # API: Get full tournament details (including points table, fixtures, squads, leaders)
@@ -113,11 +114,11 @@ class ScoreWizzHandler(http.server.BaseHTTPRequestHandler):
     def do_DELETE(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        query = urllib.parse.parse_qs(parsed.query)
         if path.startswith('/api/tournaments/'):
             tournament_id = path.split('/')[-1]
-            with database.get_db() as conn:
-                conn.execute("DELETE FROM tournaments WHERE id = ?", (tournament_id,))
-                conn.commit()
+            owner = query.get('owner', [None])[0]
+            database.delete_tournament(tournament_id, owner=owner)
             return self.send_json(200, {'success': True, 'message': 'Tournament deleted'})
         self.send_json(404, {'error': 'Route not found'})
 

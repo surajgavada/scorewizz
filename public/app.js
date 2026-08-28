@@ -233,24 +233,9 @@ window.handleAdminLogin = function () {
     return;
   }
 
-  const registeredName = localStorage.getItem('scorewizz_registered_admin_name') || 'Suraj';
-
-  if (
-    enteredName.toLowerCase() === registeredName.toLowerCase() ||
-    enteredName.toLowerCase() === 'admin' ||
-    enteredName.toLowerCase() === 'suraj'
-  ) {
-    appState.adminName = enteredName;
-    localStorage.setItem('scorewizz_admin_name', enteredName);
-    localStorage.setItem('scorewizz_registered_admin_name', enteredName);
-    applyUserRole('admin', enteredName, true);
-  } else {
-    showToast(`Name "${enteredName}" not recognized as Admin. Enter "${registeredName}" to login, or continue as Viewer.`);
-    if (nameInput) {
-      nameInput.focus();
-      nameInput.select();
-    }
-  }
+  appState.adminName = enteredName;
+  localStorage.setItem('scorewizz_admin_name', enteredName);
+  applyUserRole('admin', enteredName, true);
 };
 
 window.handleViewerLogin = function () {
@@ -271,14 +256,11 @@ function showLoginScreen() {
   const screen = document.querySelector('#loginScreen');
   if (screen) {
     screen.style.display = 'flex';
-    const registeredName = localStorage.getItem('scorewizz_registered_admin_name') || localStorage.getItem('scorewizz_admin_name') || 'Suraj';
-    
-    const label = document.querySelector('#registeredAdminLabel');
-    if (label) label.textContent = registeredName;
+    const lastAdminName = localStorage.getItem('scorewizz_admin_name') || 'Suraj';
 
     const nameInput = document.querySelector('#adminNameInput');
     if (nameInput) {
-      nameInput.value = registeredName;
+      nameInput.value = lastAdminName;
     }
     const viewerNameInput = document.querySelector('#viewerNameInput');
     if (viewerNameInput) {
@@ -305,9 +287,15 @@ function applyUserRole(role, userName = null, notify = true) {
   if (role === 'admin') {
     appState.adminName = userName;
     localStorage.setItem('scorewizz_admin_name', userName);
+
+    // Switch to this specific admin's isolated workspace
+    switchUserAdminWorkspace(userName);
   } else {
     appState.viewerName = userName;
     localStorage.setItem('scorewizz_viewer_name', userName);
+
+    // Setup Viewer workspace with active tournament and match results
+    setupViewerWorkspace();
   }
 
   document.body.classList.remove('role-admin', 'role-viewer');
@@ -334,7 +322,79 @@ function applyUserRole(role, userName = null, notify = true) {
   renderAllViews();
 
   if (notify) {
-    showToast(role === 'admin' ? `Logged in as Admin (${userName}) - Full Scoring Active` : `Logged in as Viewer (${userName}) - Read Only Active`);
+    showToast(role === 'admin' ? `Logged in as Admin (${userName}) - Private Tournaments Loaded` : `Logged in as Viewer (${userName}) - Read Only Active`);
+  }
+}
+
+function switchUserAdminWorkspace(userName) {
+  const allTours = getAllTournamentsRaw();
+  const uKey = (userName || 'Suraj').toLowerCase();
+
+  // Find tournaments belonging specifically to this admin
+  const userTours = allTours.filter((t) => (t.owner || 'Suraj').toLowerCase() === uKey);
+
+  if (userTours.length > 0) {
+    // Admin has tournaments; set their active tournament to their most recent tournament
+    appState.tournament = userTours[0];
+    const unplayed = (userTours[0].fixtures || []).find((f) => f.status !== 'completed' && !f.is_completed);
+    if (unplayed) {
+      initMatchFromFixture(unplayed);
+    } else if (userTours[0].fixtures && userTours[0].fixtures.length > 0) {
+      initMatchFromFixture(userTours[0].fixtures[0]);
+    }
+  } else if (uKey === 'suraj') {
+    // Default starter tournament for master admin
+    createDefaultTournament('Suraj');
+  } else {
+    // Brand new user: give 100% fresh empty page with NO tournaments!
+    appState.tournament = null;
+    appState.activeMatch = null;
+  }
+  ensureValidActiveMatch();
+}
+
+function setupViewerWorkspace() {
+  const allTours = getAllTournamentsRaw();
+  if (allTours && allTours.length > 0) {
+    if (!appState.tournament || !appState.tournament.teams || appState.tournament.teams.length < 2) {
+      appState.tournament = allTours[0];
+    }
+  }
+
+  if (!appState.tournament || !appState.tournament.teams || appState.tournament.teams.length < 2) {
+    const savedT = localStorage.getItem('scorewizz_tournament_v4') || localStorage.getItem('scorewizz_tournament_v3');
+    if (savedT) {
+      try {
+        appState.tournament = JSON.parse(savedT);
+      } catch (e) {}
+    }
+  }
+
+  if (!appState.tournament || !appState.tournament.teams || appState.tournament.teams.length < 2) {
+    createDefaultTournament('Suraj');
+  }
+
+  if (appState.tournament) {
+    const fixtures = appState.tournament.fixtures || [];
+    // Prioritize showing a completed match with full result, or live match, or first fixture
+    const completedFix = fixtures.find((f) => (f.status === 'completed' || f.is_completed) && f.match_state);
+    const completedAny = fixtures.find((f) => f.status === 'completed' || f.is_completed);
+    const liveFix = fixtures.find((f) => f.status === 'live');
+    const targetFix = completedFix || liveFix || completedAny || fixtures[0];
+
+    if (targetFix) {
+      if (targetFix.match_state) {
+        appState.activeMatch = JSON.parse(JSON.stringify(targetFix.match_state));
+      } else if (!appState.activeMatch || appState.activeMatch.fixture_id !== targetFix.id) {
+        const t1 = appState.tournament.teams.find((t) => t.id === targetFix.team1_id) || appState.tournament.teams[0];
+        const t2 = appState.tournament.teams.find((t) => t.id === targetFix.team2_id) || appState.tournament.teams[1 % appState.tournament.teams.length];
+        appState.activeMatch = createNewMatchState(t1, t2, appState.tournament.overs || 20, targetFix.id);
+        if (targetFix.status === 'completed' && targetFix.result_text) {
+          appState.activeMatch.is_match_completed = true;
+          appState.activeMatch.result_text = targetFix.result_text;
+        }
+      }
+    }
   }
 }
 
@@ -344,35 +404,15 @@ function applyUserRole(role, userName = null, notify = true) {
 
 document.addEventListener('DOMContentLoaded', async () => {
   loadFromLocalStorage();
-
-  try {
-    const serverTournaments = await apiFetch('/api/tournaments');
-    if (serverTournaments && serverTournaments.length > 0) {
-      const activeTId = appState.tournament?.id || serverTournaments[0].id;
-      const fullT = await apiFetch(`/api/tournaments/${activeTId}`);
-      if (fullT && fullT.teams && fullT.teams.length >= 2) {
-        appState.tournament = fullT;
-        saveToLocalStorage();
-      }
-    }
-  } catch (e) {
-    console.log('Offline mode active');
-  }
-
-  if (!appState.tournament || !appState.tournament.teams || appState.tournament.teams.length < 2) {
-    createDefaultTournament();
-  }
-
-  ensureValidActiveMatch();
   setupEventListeners();
   initUserRole();
-  renderAllViews();
 });
 
 function ensureValidActiveMatch() {
   const tour = appState.tournament;
   if (!tour || !tour.teams || tour.teams.length < 2) {
-    createDefaultTournament();
+    appState.activeMatch = null;
+    return;
   }
 
   const t1 = tour.teams[0];
@@ -392,10 +432,14 @@ function ensureValidActiveMatch() {
   }
 }
 
-function createDefaultTournament() {
-  const tId = 'tour_premier_2026';
+function createDefaultTournament(ownerName = null) {
+  const owner = ownerName || appState.adminName || 'Suraj';
+  const slug = owner.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const tId = `tour_premier_${slug}_2026`;
+  const tName = owner.toLowerCase() === 'suraj' ? 'Premier T20 Championship 2026' : `Premier T20 - ${owner}`;
+
   const teams = DEFAULT_SAMPLE_TEAMS.map((t, idx) => {
-    const teamId = `team_${idx + 1}`;
+    const teamId = `team_${slug}_${idx + 1}`;
     return {
       id: teamId,
       tournament_id: tId,
@@ -449,9 +493,10 @@ function createDefaultTournament() {
 
   appState.tournament = {
     id: tId,
-    name: 'Premier T20 Championship 2026',
+    name: tName,
     overs: 20,
     format: 'T20',
+    owner,
     teams,
     fixtures,
     points_table: pointsTable,
@@ -696,6 +741,21 @@ function generateKnockoutSchedule(teams, tournamentId) {
 let p11Context = null;
 
 function openPlaying11Modal(team1, team2, oversLimit = 20, fixtureId = null, onComplete = null) {
+  if (fixtureId && appState.tournament?.fixtures) {
+    const fix = appState.tournament.fixtures.find((f) => f.id === fixtureId);
+    const isCompleted = fix && ((fix.status || '').toLowerCase() === 'completed' || Boolean(fix.is_completed));
+    if (isCompleted) {
+      initMatchFromFixture(fix);
+      switchView('scorecard');
+      renderAllViews();
+      return;
+    }
+  }
+
+  if (appState.userRole === 'viewer') {
+    return;
+  }
+
   const modal = document.querySelector('#playing11Modal');
   if (!modal) return;
 
@@ -1092,9 +1152,27 @@ function initMatchFromFixture(fixture) {
   const tour = appState.tournament;
   if (!tour || !tour.teams) return;
 
+  if (fixture.match_state) {
+    appState.activeMatch = JSON.parse(JSON.stringify(fixture.match_state));
+    saveToLocalStorage();
+    return;
+  }
+
   const t1 = tour.teams.find((t) => t.id === fixture.team1_id) || tour.teams[0];
   const t2 = tour.teams.find((t) => t.id === fixture.team2_id) || tour.teams[1 % tour.teams.length];
   const oversLimit = tour.overs || 20;
+
+  if (fixture.status === 'completed' || fixture.is_completed || appState.userRole === 'viewer') {
+    appState.activeMatch = createNewMatchState(t1, t2, oversLimit, fixture.id);
+    if (fixture.result_text) {
+      appState.activeMatch.result_text = fixture.result_text;
+      appState.activeMatch.victory_margin = fixture.victory_margin || '';
+      appState.activeMatch.winner_team_id = fixture.winner_team_id || null;
+      appState.activeMatch.is_match_completed = true;
+    }
+    saveToLocalStorage();
+    return;
+  }
 
   openPlaying11Modal(t1, t2, oversLimit, fixture.id, (match) => {
     switchView('scoreboard');
@@ -1837,79 +1915,157 @@ function calculateAwards() {
   const match = appState.activeMatch;
   if (!match) return;
 
-  const playerPoints = [];
+  const playerMap = new Map();
 
   [match.innings1, match.innings2].forEach((inn) => {
-    inn.batters.forEach((b) => {
-      let pts = (b.runs * 1) + (b.fours * 1) + (b.sixes * 2);
-      if (b.runs >= 50) pts += 15;
-      if (b.runs >= 100) pts += 25;
+    if (!inn) return;
+    // Batting stats
+    (inn.batters || []).forEach((b) => {
+      if (!b || (!b.player_id && !b.name)) return;
+      const key = b.player_id || b.name;
+      if (!playerMap.has(key)) {
+        playerMap.set(key, {
+          player_id: b.player_id,
+          name: b.name,
+          team_id: inn.batting_team_id,
+          team_name: inn.batting_team_name,
+          role: b.role || 'Batter',
+          is_captain: b.is_captain,
+          is_vice_captain: b.is_vice_captain,
+          runs: 0,
+          balls: 0,
+          fours: 0,
+          sixes: 0,
+          wickets: 0,
+          maidens: 0,
+          runs_conceded: 0,
+          balls_bowled: 0,
+          batting_points: 0,
+          bowling_points: 0,
+          points: 0
+        });
+      }
+      const p = playerMap.get(key);
+      p.runs += b.runs || 0;
+      p.balls += b.balls || 0;
+      p.fours += b.fours || 0;
+      p.sixes += b.sixes || 0;
+
+      let batPts = (b.runs * 1) + (b.fours * 1) + (b.sixes * 2);
+      if (b.runs >= 50) batPts += 15;
+      if (b.runs >= 100) batPts += 25;
       if (b.balls >= 10) {
         const sr = (b.runs / b.balls) * 100;
-        if (sr >= 170) pts += 10;
-        else if (sr >= 140) pts += 6;
+        if (sr >= 170) batPts += 10;
+        else if (sr >= 140) batPts += 6;
       }
-      playerPoints.push({
-        player_id: b.player_id,
-        name: b.name,
-        team_id: inn.batting_team_id,
-        team_name: inn.batting_team_name,
-        role: b.role || 'Batter',
-        is_captain: b.is_captain,
-        is_vice_captain: b.is_vice_captain,
-        runs: b.runs,
-        balls: b.balls,
-        fours: b.fours,
-        sixes: b.sixes,
-        wickets: 0,
-        maidens: 0,
-        runs_conceded: 0,
-        points: pts,
-        type: 'batting'
-      });
+      p.batting_points += batPts;
+      p.points += batPts;
     });
 
-    inn.bowlers.forEach((bw) => {
-      if (bw.legal_balls === 0) return;
-      let pts = (bw.wickets * 25) + (bw.maidens * 10) + (bw.dots * 1);
-      if (bw.wickets >= 3) pts += 15;
-      if (bw.wickets >= 5) pts += 30;
-      const overs = bw.legal_balls / 6;
-      if (overs >= 2) {
-        const econ = bw.runs / overs;
-        if (econ <= 6.0) pts += 12;
-        else if (econ <= 7.5) pts += 6;
+    // Bowling stats
+    (inn.bowlers || []).forEach((bw) => {
+      if (!bw || (!bw.player_id && !bw.name)) return;
+      const key = bw.player_id || bw.name;
+      if (!playerMap.has(key)) {
+        playerMap.set(key, {
+          player_id: bw.player_id,
+          name: bw.name,
+          team_id: inn.bowling_team_id,
+          team_name: inn.bowling_team_name,
+          role: bw.role || 'Bowler',
+          is_captain: bw.is_captain,
+          is_vice_captain: bw.is_vice_captain,
+          runs: 0,
+          balls: 0,
+          fours: 0,
+          sixes: 0,
+          wickets: 0,
+          maidens: 0,
+          runs_conceded: 0,
+          balls_bowled: 0,
+          batting_points: 0,
+          bowling_points: 0,
+          points: 0
+        });
       }
-      playerPoints.push({
-        player_id: bw.player_id,
-        name: bw.name,
-        team_id: inn.bowling_team_id,
-        team_name: inn.bowling_team_name,
-        role: bw.role || 'Bowler',
-        is_captain: bw.is_captain,
-        is_vice_captain: bw.is_vice_captain,
-        runs: 0,
-        balls: 0,
-        fours: 0,
-        sixes: 0,
-        wickets: bw.wickets,
-        maidens: bw.maidens,
-        runs_conceded: bw.runs,
-        balls_bowled: bw.legal_balls,
-        points: pts,
-        type: 'bowling'
-      });
+      const p = playerMap.get(key);
+      p.wickets += bw.wickets || 0;
+      p.maidens += bw.maidens || 0;
+      p.runs_conceded += bw.runs || 0;
+      p.balls_bowled += bw.legal_balls || 0;
+
+      let bowlPts = (bw.wickets * 25) + (bw.maidens * 10) + (bw.dots * 1);
+      if (bw.wickets >= 3) bowlPts += 15;
+      if (bw.wickets >= 5) bowlPts += 30;
+      const overs = (bw.legal_balls || 0) / 6;
+      if (overs >= 1) {
+        const econ = bw.runs / overs;
+        if (econ <= 6.0) bowlPts += 12;
+        else if (econ <= 7.5) bowlPts += 6;
+      }
+      p.bowling_points += bowlPts;
+      p.points += bowlPts;
     });
   });
 
-  playerPoints.sort((a, b) => b.points - a.points);
-  const potm = playerPoints[0] || { name: 'Arjun Mehta', runs: 0, balls: 0, points: 0 };
-  const batList = playerPoints.filter((p) => p.type === 'batting').sort((a, b) => b.runs - a.runs || b.points - a.points);
+  const allList = Array.from(playerMap.values());
+  allList.forEach((p) => {
+    p.overs_text = `${Math.floor((p.balls_bowled || 0) / 6)}.${(p.balls_bowled || 0) % 6}`;
+    p.economy = p.balls_bowled > 0 ? (p.runs_conceded / (p.balls_bowled / 6)).toFixed(2) : '0.00';
+    p.sr = p.balls > 0 ? ((p.runs / p.balls) * 100).toFixed(1) : '0.0';
+    p.is_bowler = (p.role === 'Bowler') || (p.wickets >= 2 && p.bowling_points >= p.batting_points) || (p.wickets > 0 && p.runs === 0);
+  });
+
+  allList.sort((a, b) => b.points - a.points);
+  const potm = allList[0] || { name: 'Player of the Match', runs: 0, balls: 0, wickets: 0, runs_conceded: 0, balls_bowled: 0, points: 0 };
+
+  const batList = allList.filter((p) => (p.runs > 0 || p.balls > 0)).sort((a, b) => b.runs - a.runs || b.points - a.points);
   const bestBat = batList[0] || potm;
-  const bowlList = playerPoints.filter((p) => p.type === 'bowling').sort((a, b) => b.wickets - a.wickets || a.runs_conceded - b.runs_conceded);
+
+  const bowlList = allList.filter((p) => (p.balls_bowled > 0 || p.wickets > 0)).sort((a, b) => b.wickets - a.wickets || a.runs_conceded - b.runs_conceded || b.points - a.points);
   const bestBowl = bowlList[0] || potm;
 
   match.awards = { potm, best_batsman: bestBat, best_bowler: bestBowl };
+}
+
+function formatPotmPerformance(potm, isHtml = true) {
+  if (!potm) return 'Match Performance';
+  const wickets = potm.wickets || 0;
+  const runsConceded = potm.runs_conceded || 0;
+  const ballsBowled = potm.balls_bowled || potm.legal_balls || 0;
+  const maidens = potm.maidens || 0;
+  const runs = potm.runs || 0;
+  const balls = potm.balls || 0;
+
+  const oversText = potm.overs_text || `${Math.floor(ballsBowled / 6)}.${ballsBowled % 6}`;
+  const econ = potm.economy || (ballsBowled > 0 ? (runsConceded / (ballsBowled / 6)).toFixed(2) : '0.00');
+  const sr = potm.sr || (balls > 0 ? ((runs / balls) * 100).toFixed(1) : '0.0');
+
+  const isBowler = potm.is_bowler || (potm.role === 'Bowler') || (wickets >= 2 && wickets * 25 > runs) || (wickets > 0 && runs === 0);
+  const isAllRounder = wickets > 0 && runs > 0;
+
+  if (isHtml) {
+    if (isAllRounder) {
+      return `<strong style="color: #10b981; font-size: 20px;">${wickets}/${runsConceded}</strong> <small style="font-size: 13px; color: var(--ink-muted);">(${oversText} ov, Econ: <b>${econ}</b>)</small> <span style="margin: 0 4px; color: var(--ink-faint);">•</span> <strong style="color: var(--coral); font-size: 20px;">${runs}</strong> <small style="font-size: 13px; color: var(--ink-muted);">runs (${balls}b)</small>`;
+    }
+    if (isBowler) {
+      const maidenText = maidens > 0 ? ` (${maidens} maiden${maidens > 1 ? 's' : ''})` : '';
+      return `<strong style="color: #10b981; font-size: 22px;">${wickets}/${runsConceded}</strong> <small style="display: block; margin-top: 4px; font-size: 13px; color: var(--ink-muted);">${oversText} overs${maidenText} • Economy: <b style="color: #10b981;">${econ}</b></small>`;
+    }
+    // Batter
+    return `<strong style="color: var(--coral); font-size: 22px;">${runs}</strong> <small style="display: block; margin-top: 4px; font-size: 13px; color: var(--ink-muted);">${balls} balls (SR: <b>${sr}</b>${potm.fours ? `, ${potm.fours}x4` : ''}${potm.sixes ? `, ${potm.sixes}x6` : ''})</small>`;
+  } else {
+    // Plain text
+    if (isAllRounder) {
+      return `${wickets}/${runsConceded} (${oversText} ov, Economy: ${econ}) & ${runs} runs (${balls}b)`;
+    }
+    if (isBowler) {
+      const maidenText = maidens > 0 ? `, ${maidens} maiden${maidens > 1 ? 's' : ''}` : '';
+      return `${wickets}/${runsConceded} in ${oversText} ov${maidenText} (Economy: ${econ})`;
+    }
+    return `${runs} runs off ${balls} balls (SR: ${sr})`;
+  }
 }
 
 // ----------------------------------------------------
@@ -2006,8 +2162,11 @@ function updateTournamentStandingsAndStats(match) {
     const fix = tour.fixtures.find((f) => f.id === match.fixture_id);
     if (fix) {
       fix.status = 'completed';
+      fix.is_completed = true;
       fix.winner_team_id = match.winner_team_id;
       fix.result_text = match.result_text;
+      fix.victory_margin = match.victory_margin || '';
+      fix.match_state = JSON.parse(JSON.stringify(match));
 
       // Knockout bracket auto-advancement
       if (fix.next_fixture_id && match.winner_team_id) {
@@ -2030,6 +2189,7 @@ function updateTournamentStandingsAndStats(match) {
     }
   }
 
+  saveTournamentToDirectory(tour);
   saveToLocalStorage();
 }
 
@@ -2046,17 +2206,31 @@ function renderAllViews() {
   renderLeaderboardsView();
   renderSummaryView();
 
+  const badge = document.querySelector('#sidebarTournamentName');
+  const eyebrow = document.querySelector('#topbarEyebrow');
   if (appState.tournament) {
-    const badge = document.querySelector('#sidebarTournamentName');
     if (badge) badge.textContent = appState.tournament.name;
-    const eyebrow = document.querySelector('#topbarEyebrow');
     if (eyebrow) eyebrow.textContent = appState.tournament.name;
+  } else {
+    if (badge) badge.textContent = 'No Active Tournament';
+    if (eyebrow) eyebrow.textContent = 'ScoreWizz Cricket Portal';
   }
 }
 
 function renderScoreboardView() {
+  const prompt = document.querySelector('#noTournamentPrompt');
+  const main = document.querySelector('#scoreboardMainContent');
+
+  if (!appState.tournament || !appState.activeMatch) {
+    if (prompt) prompt.style.display = 'block';
+    if (main) main.style.display = 'none';
+    return;
+  }
+
+  if (prompt) prompt.style.display = 'none';
+  if (main) main.style.display = 'block';
+
   const match = appState.activeMatch;
-  if (!match) return;
   const inn = getCurrentInnings();
   if (!inn) return;
 
@@ -2250,9 +2424,28 @@ function renderScoreboardView() {
   // ----------------------------------------------------
   const completedSummary = document.querySelector('#scoreboardCompletedSummary');
   const scoringPanel = document.querySelector('#scoringPanel');
+  const openP11Btn = document.querySelector('#openPlaying11Btn');
+  const openTossBtn = document.querySelector('#openTossBtn');
+  const swInnBtn = document.querySelector('#switchInningsBtn');
+  const resetBtn = document.querySelector('#resetMatchBtn');
+  const chgBowlBtn = document.querySelector('#changeBowlerBtn');
+  const swStrikeBtn = document.querySelector('#swapStrikeBtn');
+  const retStrikBtn = document.querySelector('#retireStrikerBtn');
+  const retNonStrikBtn = document.querySelector('#retireNonStrikerBtn');
+  const bowlInjBtn = document.querySelector('#bowlerInjuryBtn');
 
   if (match.is_match_completed) {
     if (scoringPanel) scoringPanel.style.display = 'none';
+    if (openP11Btn) openP11Btn.style.display = 'none';
+    if (openTossBtn) openTossBtn.style.display = 'none';
+    if (swInnBtn) swInnBtn.style.display = 'none';
+    if (resetBtn) resetBtn.style.display = 'none';
+    if (chgBowlBtn) chgBowlBtn.style.display = 'none';
+    if (swStrikeBtn) swStrikeBtn.style.display = 'none';
+    if (retStrikBtn) retStrikBtn.style.display = 'none';
+    if (retNonStrikBtn) retNonStrikBtn.style.display = 'none';
+    if (bowlInjBtn) bowlInjBtn.style.display = 'none';
+
     if (completedSummary) {
       completedSummary.style.display = 'block';
       const wTitle = document.querySelector('#sbSummaryWinnerTitle');
@@ -2273,7 +2466,7 @@ function renderScoreboardView() {
         const pInit = document.querySelector('#sbSummaryPotmInitials');
         if (pInit) pInit.textContent = potm.name.substring(0, 2).toUpperCase();
         const pStats = document.querySelector('#sbSummaryPotmStats');
-        if (pStats) pStats.textContent = `${potm.runs || 0} runs (${potm.balls || 0}b), ${potm.wickets || 0} wkts`;
+        if (pStats) pStats.textContent = formatPotmPerformance(potm, false);
       }
 
       const bestBat = match.awards?.best_batsman;
@@ -2293,8 +2486,9 @@ function renderScoreboardView() {
         const bwInit = document.querySelector('#sbSummaryBowlInitials');
         if (bwInit) bwInit.textContent = bestBowl.name.substring(0, 2).toUpperCase();
         const bwStats = document.querySelector('#sbSummaryBowlStats');
-        const bOversStr = `${Math.floor((bestBowl.balls_bowled || bestBowl.legal_balls || 0) / 6)}.${(bestBowl.balls_bowled || bestBowl.legal_balls || 0) % 6}`;
-        if (bwStats) bwStats.textContent = `${bestBowl.wickets || 0}/${bestBowl.runs_conceded || bestBowl.runs || 0} (${bOversStr} ov)`;
+        const bOversStr = bestBowl.overs_text || `${Math.floor((bestBowl.balls_bowled || bestBowl.legal_balls || 0) / 6)}.${(bestBowl.balls_bowled || bestBowl.legal_balls || 0) % 6}`;
+        const bEcon = bestBowl.economy || (bestBowl.balls_bowled > 0 ? (bestBowl.runs_conceded / (bestBowl.balls_bowled / 6)).toFixed(2) : '0.00');
+        if (bwStats) bwStats.textContent = `${bestBowl.wickets || 0}/${bestBowl.runs_conceded || bestBowl.runs || 0} (${bOversStr} ov, Econ: ${bEcon})`;
       }
 
       const allBatters = [...(match.innings1?.batters || []), ...(match.innings2?.batters || [])].filter((b) => (b.balls || 0) > 0);
@@ -2308,10 +2502,24 @@ function renderScoreboardView() {
         if (srStats) srStats.textContent = topSR.balls > 0 ? `${((topSR.runs / topSR.balls) * 100).toFixed(1)} SR (${topSR.runs} off ${topSR.balls}b)` : 'N/A';
       }
 
+      // Wire scoreboard completed action buttons
+      const sbViewSCBtn = document.querySelector('#sbViewScorecardBtn');
+      if (sbViewSCBtn) {
+        sbViewSCBtn.onclick = () => switchView('scorecard');
+      }
+      const sbViewPTBtn = document.querySelector('#sbViewPointsTableBtn');
+      if (sbViewPTBtn) {
+        sbViewPTBtn.onclick = () => switchView('pointsTable');
+      }
+      const sbExportBtn = document.querySelector('#sbExportScorecardBtn');
+      if (sbExportBtn) {
+        sbExportBtn.onclick = () => exportMatchScorecardTxt();
+      }
+
       const nextBtn = document.querySelector('#sbStartNextMatchBtn');
       const upcomingFix = (appState.tournament?.fixtures || []).find((f) => f.status === 'upcoming' && f.id !== match.fixture_id);
       if (nextBtn) {
-        if (upcomingFix) {
+        if (upcomingFix && appState.userRole === 'admin') {
           const t1 = appState.tournament.teams.find((t) => t.id === upcomingFix.team1_id);
           const t2 = appState.tournament.teams.find((t) => t.id === upcomingFix.team2_id);
           nextBtn.textContent = `Start Next Match: ${t1 ? t1.short_name : 'T1'} vs ${t2 ? t2.short_name : 'T2'}`;
@@ -2322,26 +2530,52 @@ function renderScoreboardView() {
             showToast(`Match started: ${t1 ? t1.name : 'Team 1'} vs ${t2 ? t2.name : 'Team 2'}`);
           };
         } else if (appState.tournament) {
-          nextBtn.textContent = 'View Final Tournament Standings';
+          nextBtn.textContent = 'View Tournament Standings';
           nextBtn.style.display = 'inline-flex';
-          nextBtn.onclick = () => switchView('leaderboards');
+          nextBtn.onclick = () => switchView('pointsTable');
         } else {
           nextBtn.style.display = 'none';
         }
       }
     }
   } else {
-    if (scoringPanel) scoringPanel.style.display = 'block';
     if (completedSummary) completedSummary.style.display = 'none';
+    if (appState.userRole === 'admin') {
+      if (scoringPanel) scoringPanel.style.display = 'block';
+      if (openP11Btn) openP11Btn.style.display = 'inline-flex';
+      if (openTossBtn) openTossBtn.style.display = 'inline-flex';
+      if (swInnBtn) swInnBtn.style.display = 'inline-flex';
+      if (resetBtn) resetBtn.style.display = 'inline-flex';
+      if (chgBowlBtn) chgBowlBtn.style.display = 'inline-flex';
+      if (swStrikeBtn) swStrikeBtn.style.display = 'inline-flex';
+      if (retStrikBtn) retStrikBtn.style.display = 'inline-flex';
+      if (retNonStrikBtn) retNonStrikBtn.style.display = 'inline-flex';
+      if (bowlInjBtn) bowlInjBtn.style.display = 'inline-flex';
+    }
   }
 }
 
 function renderScorecardView() {
   const match = appState.activeMatch;
-  if (!match) return;
-
   const scHead = document.querySelector('#scorecardHeading');
+  const resultBanner = document.querySelector('#scorecardResultBanner');
+
+  if (!match) {
+    if (scHead) scHead.textContent = 'No Match Loaded';
+    if (resultBanner) resultBanner.style.display = 'none';
+    return;
+  }
+
   if (scHead) scHead.textContent = `${match.team1.name} vs ${match.team2.name}`;
+
+  if (resultBanner) {
+    if (match.is_match_completed || match.result_text) {
+      resultBanner.textContent = match.result_text || 'Match Concluded';
+      resultBanner.style.display = 'block';
+    } else {
+      resultBanner.style.display = 'none';
+    }
+  }
 
   renderInningsScorecardBlock(match.innings1, '#inn1BattingHeader', '#inn1TotalBadge', '#inn1BattingTable', '#inn1ExtrasRow', '#inn1FOWText', '#inn1BowlingHeader', '#inn1BowlingTable');
   renderInningsScorecardBlock(match.innings2, '#inn2BattingHeader', '#inn2TotalBadge', '#inn2BattingTable', '#inn2ExtrasRow', '#inn2FOWText', '#inn2BowlingHeader', '#inn2BowlingTable');
@@ -2421,12 +2655,26 @@ function renderInningsScorecardBlock(inn, headId, badgeId, batTableId, extraRowI
 
 function renderPointsTableView() {
   const tour = appState.tournament;
-  if (!tour || !tour.points_table) return;
-
   const ptHead = document.querySelector('#pointsTableHeading');
-  if (ptHead) ptHead.textContent = `${tour.name} - Points Table`;
-  
   const tbody = document.querySelector('#pointsTableBody');
+
+  if (!tour || !tour.points_table || tour.points_table.length === 0) {
+    if (ptHead) ptHead.textContent = 'Tournament Points Table';
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 48px 16px;">
+            <div style="font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">No Points Table Available</div>
+            <p class="muted" style="margin-bottom: 16px;">You must create a tournament to generate standings and track team points.</p>
+            <button class="btn btn-primary btn-sm admin-only" onclick="openTournamentWizard()">＋ Create Tournament</button>
+          </td>
+        </tr>
+      `;
+    }
+    return;
+  }
+
+  if (ptHead) ptHead.textContent = `${tour.name} - Points Table`;
   if (!tbody) return;
   tbody.innerHTML = '';
 
@@ -2468,11 +2716,23 @@ function renderPointsTableView() {
 
 function renderFixturesView() {
   const tour = appState.tournament;
-  if (!tour || !tour.fixtures) return;
-
   const toggleGroup = document.querySelector('#fixturesViewToggleGroup');
   const bracketContainer = document.querySelector('#knockoutBracketContainer');
   const grid = document.querySelector('#fixturesGrid');
+
+  if (!tour || !tour.fixtures || tour.fixtures.length === 0) {
+    if (toggleGroup) toggleGroup.style.display = 'none';
+    if (grid) {
+      grid.innerHTML = `
+        <div class="panel" style="grid-column: 1 / -1; text-align: center; padding: 48px 24px;">
+          <h3 style="color: var(--ink); margin-bottom: 8px;">No tournament schedule yet</h3>
+          <p class="muted" style="margin-bottom: 20px; max-width: 500px; margin-left: auto; margin-right: auto;">Create a tournament to register team squads and generate league or knockout fixtures.</p>
+          <button class="btn btn-primary admin-only" onclick="openTournamentWizard()">＋ Create Tournament</button>
+        </div>
+      `;
+    }
+    return;
+  }
 
   if (toggleGroup) {
     toggleGroup.style.display = tour.schedule_mode === 'knockout' ? 'inline-flex' : 'none';
@@ -2484,12 +2744,15 @@ function renderFixturesView() {
       const card = document.createElement('div');
       card.className = 'fixture-card';
 
+      const isCompleted = (fix.status || '').toLowerCase() === 'completed' || Boolean(fix.is_completed);
+      const isLive = (fix.status || '').toLowerCase() === 'live';
+
       let statusTagClass = 'status-upcoming';
       let statusText = 'Upcoming';
-      if (fix.status === 'live') {
+      if (isLive) {
         statusTagClass = 'status-live';
         statusText = '● LIVE';
-      } else if (fix.status === 'completed') {
+      } else if (isCompleted) {
         statusTagClass = 'status-completed';
         statusText = 'Completed';
       }
@@ -2518,8 +2781,8 @@ function renderFixturesView() {
         </div>
         ${fix.result_text ? `<div class="fixture-result-note">${fix.result_text}</div>` : `<div class="muted"> ${fix.venue || 'Stadium'}</div>`}
         <div style="margin-top: auto; padding-top: 10px;">
-          <button class="btn btn-sm ${isTbd1 || isTbd2 ? 'btn-ghost' : 'btn-outline'} btn-block" onclick="startMatchFromSchedule('${fix.id}')" ${isTbd1 || isTbd2 ? 'style="opacity: 0.6;"' : ''}>
-            ${appState.userRole === 'viewer' ? (fix.status === 'completed' ? 'View Scorecard' : (fix.status === 'live' ? 'View Live Scoreboard' : 'View Match Details')) : (fix.status === 'completed' ? 'View / Replay Match' : (isTbd1 || isTbd2 ? 'Awaiting Previous Round' : 'Score This Match ->'))}
+          <button class="btn btn-sm ${isCompleted ? 'btn-outline' : (isTbd1 || isTbd2 ? 'btn-ghost' : 'btn-primary')} btn-block" onclick="startMatchFromSchedule('${fix.id}')" ${isTbd1 || isTbd2 ? 'style="opacity: 0.6;"' : ''}>
+            ${isCompleted ? 'View Result' : (isTbd1 || isTbd2 ? 'Awaiting Previous Round' : 'Score This Match →')}
           </button>
         </div>
       `;
@@ -2573,8 +2836,8 @@ function renderKnockoutBracketTree(containerSelector, fixtures, teams) {
     matches.forEach((fix) => {
       const isTbd1 = String(fix.team1_id).startsWith('TBD');
       const isTbd2 = String(fix.team2_id).startsWith('TBD');
-      const isCompleted = fix.status === 'completed';
-      const isLive = fix.status === 'live';
+      const isCompleted = (fix.status || '').toLowerCase() === 'completed' || Boolean(fix.is_completed);
+      const isLive = (fix.status || '').toLowerCase() === 'live';
       const winnerId = fix.winner_team_id;
 
       let statusBadge = `<span class="badge" style="font-size: 10px;">#${fix.match_number}</span>`;
@@ -2617,8 +2880,18 @@ window.startMatchFromSchedule = function (fixtureId) {
   const fix = appState.tournament.fixtures.find((f) => f.id === fixtureId);
   if (!fix) return;
 
+  const isCompleted = (fix.status || '').toLowerCase() === 'completed' || Boolean(fix.is_completed);
+
   if (String(fix.team1_id).startsWith('TBD') || String(fix.team2_id).startsWith('TBD')) {
     showToast('Teams for this match are not decided yet. Complete earlier round matches first!');
+    return;
+  }
+
+  if (isCompleted) {
+    initMatchFromFixture(fix);
+    switchView('scorecard');
+    renderAllViews();
+    showToast(`Viewing Result: ${fix.team1_name} vs ${fix.team2_name}`);
     return;
   }
 
@@ -2643,9 +2916,23 @@ window.startMatchFromSchedule = function (fixtureId) {
 
 function renderTeamsView() {
   const tour = appState.tournament;
-  if (!tour || !tour.teams) return;
-
   const pills = document.querySelector('#teamPills');
+  const roster = document.querySelector('#teamRosterList');
+
+  if (!tour || !tour.teams || tour.teams.length === 0) {
+    if (pills) pills.innerHTML = '';
+    if (roster) {
+      roster.innerHTML = `
+        <div class="panel" style="grid-column: 1 / -1; text-align: center; padding: 48px 24px;">
+          <h3 style="color: var(--ink); margin-bottom: 8px;">No team squads found</h3>
+          <p class="muted" style="margin-bottom: 20px; max-width: 500px; margin-left: auto; margin-right: auto;">Create a tournament to configure teams and customize player rosters.</p>
+          <button class="btn btn-primary admin-only" onclick="openTournamentWizard()">＋ Create Tournament</button>
+        </div>
+      `;
+    }
+    return;
+  }
+
   if (!pills) return;
   pills.innerHTML = '';
 
@@ -2721,7 +3008,19 @@ function renderTeamsView() {
 
 function renderLeaderboardsView() {
   const tour = appState.tournament;
-  if (!tour || !tour.teams) return;
+  if (!tour || !tour.teams || tour.teams.length === 0) {
+    const mvp = document.querySelector('#mvpLeaderboardList');
+    if (mvp) {
+      mvp.innerHTML = `
+        <div class="panel" style="grid-column: 1 / -1; text-align: center; padding: 48px 24px;">
+          <h3 style="color: var(--ink); margin-bottom: 8px;">No tournament player statistics</h3>
+          <p class="muted" style="margin-bottom: 20px;">Create a tournament and score matches to track Orange & Purple caps and MVP rankings.</p>
+          <button class="btn btn-primary admin-only" onclick="openTournamentWizard()">＋ Create Tournament</button>
+        </div>
+      `;
+    }
+    return;
+  }
 
   const allPlayers = [];
   tour.teams.forEach((t) => {
@@ -2920,10 +3219,14 @@ function renderLeaderboardsView() {
 
 function renderSummaryView() {
   const match = appState.activeMatch;
-  if (!match) return;
-
   const resultTitle = document.querySelector('#summaryResultTitle');
   const resultDetail = document.querySelector('#summaryResultDetail');
+
+  if (!match || !appState.tournament) {
+    if (resultTitle) resultTitle.textContent = 'No Match Summary Available';
+    if (resultDetail) resultDetail.textContent = 'Create a tournament to play matches and view summaries.';
+    return;
+  }
 
   if (resultTitle && resultDetail) {
     if (match.is_match_completed) {
@@ -2949,7 +3252,7 @@ function renderSummaryView() {
   const potmRole = document.querySelector('#potmRole');
   if (potmRole) potmRole.textContent = potm.role || 'Player';
   const potmStat = document.querySelector('#potmMainStat');
-  if (potmStat) potmStat.innerHTML = `${potm.runs || 0} <small>runs off ${potm.balls || 0} balls</small>`;
+  if (potmStat) potmStat.innerHTML = formatPotmPerformance(potm, true);
   const potmInit = document.querySelector('#potmInitials');
   if (potmInit) potmInit.textContent = potm.name.substring(0, 2).toUpperCase();
 
@@ -2959,7 +3262,8 @@ function renderSummaryView() {
   const bbTeam = document.querySelector('#bestBatTeam');
   if (bbTeam) bbTeam.textContent = bestBat.team_name || 'Team';
   const bbStat = document.querySelector('#bestBatStat');
-  if (bbStat) bbStat.innerHTML = `${bestBat.runs || 0} <small>runs (${bestBat.balls || 0}b)</small>`;
+  const bbSR = bestBat.balls > 0 ? ((bestBat.runs / bestBat.balls) * 100).toFixed(1) : '0.0';
+  if (bbStat) bbStat.innerHTML = `<strong>${bestBat.runs || 0}</strong> <small>runs (${bestBat.balls || 0}b, SR: ${bbSR})</small>`;
   const bbInit = document.querySelector('#bestBatInitials');
   if (bbInit) bbInit.textContent = bestBat.name.substring(0, 2).toUpperCase();
 
@@ -2969,7 +3273,9 @@ function renderSummaryView() {
   const bblTeam = document.querySelector('#bestBowlTeam');
   if (bblTeam) bblTeam.textContent = bestBowl.team_name || 'Team';
   const bblStat = document.querySelector('#bestBowlStat');
-  if (bblStat) bblStat.innerHTML = `${bestBowl.wickets || 0}/${bestBowl.runs_conceded || 0} <small>bowling</small>`;
+  const bOversStr = bestBowl.overs_text || `${Math.floor((bestBowl.balls_bowled || 0) / 6)}.${(bestBowl.balls_bowled || 0) % 6}`;
+  const bEcon = bestBowl.economy || (bestBowl.balls_bowled > 0 ? (bestBowl.runs_conceded / (bestBowl.balls_bowled / 6)).toFixed(2) : '0.00');
+  if (bblStat) bblStat.innerHTML = `<strong>${bestBowl.wickets || 0}/${bestBowl.runs_conceded || 0}</strong> <small>(${bOversStr} ov, Econ: ${bEcon})</small>`;
   const bblInit = document.querySelector('#bestBowlInitials');
   if (bblInit) bblInit.textContent = bestBowl.name.substring(0, 2).toUpperCase();
 
@@ -3411,8 +3717,12 @@ function setupEventListeners() {
   const resetBtn = document.querySelector('#resetMatchBtn');
   if (resetBtn) {
     resetBtn.onclick = () => {
+      const match = appState.activeMatch;
+      if (match && match.is_match_completed) {
+        showToast('This match is already completed. Rematch / Reset is disabled.');
+        return;
+      }
       if (confirm('Reset this match, re-select Playing 11 and decide toss again?')) {
-        const match = appState.activeMatch;
         if (match) {
           openPlaying11Modal(match.team1, match.team2, match.overs_limit, match.fixture_id);
         }
@@ -4505,6 +4815,7 @@ async function handleWizardLaunch() {
     format: scheduleType === 'knockout' ? 'Knockout Cup' : 'T20 League',
     schedule_mode: scheduleType,
     rounds_count: roundsCount,
+    owner: appState.adminName || 'Suraj',
     teams,
     fixtures,
     points_table: pointsTable,
@@ -5780,7 +6091,7 @@ function openVictoryModal() {
     const vPotmName = document.querySelector('#victoryPotmName');
     if (vPotmName) vPotmName.innerHTML = formatPlayerName(potm);
     const vPotmStat = document.querySelector('#victoryPotmStat');
-    if (vPotmStat) vPotmStat.textContent = `${potm.runs || 0} runs (${potm.balls || 0}b), ${potm.wickets || 0} wkts`;
+    if (vPotmStat) vPotmStat.textContent = formatPotmPerformance(potm, false);
   }
 
   // Next Match Prompt
@@ -5867,9 +6178,9 @@ Total: ${match.innings1.runs}/${match.innings1.wickets} (${Math.floor(match.inni
 2ND INNINGS: ${match.innings2.batting_team_name}
 Total: ${match.innings2.runs}/${match.innings2.wickets} (${Math.floor(match.innings2.balls / 6)}.${match.innings2.balls % 6} overs)
 
-Player of the Match: ${getPlayerNamePlainText(match.awards?.potm)}
-Best Batsman: ${getPlayerNamePlainText(match.awards?.best_batsman)}
-Best Bowler: ${getPlayerNamePlainText(match.awards?.best_bowler)}
+Player of the Match: ${getPlayerNamePlainText(match.awards?.potm)} - ${formatPotmPerformance(match.awards?.potm, false)}
+Best Batsman: ${getPlayerNamePlainText(match.awards?.best_batsman)} (${match.awards?.best_batsman?.runs || 0} runs off ${match.awards?.best_batsman?.balls || 0}b)
+Best Bowler: ${getPlayerNamePlainText(match.awards?.best_bowler)} (${match.awards?.best_bowler?.wickets || 0}/${match.awards?.best_bowler?.runs_conceded || match.awards?.best_bowler?.runs || 0}, Econ: ${match.awards?.best_bowler?.economy || '0.00'})
 Best Batting Strike Rate: ${srText}
 Best Bowling Economy: ${econText}
 ======================================================
@@ -5892,7 +6203,7 @@ Generated offline with ScoreWizz Cricket Centre
 // TOURNAMENT DIRECTORY & MULTI-TOURNAMENT ENGINE
 // ----------------------------------------------------
 
-function getAllTournamentsList() {
+function getAllTournamentsRaw() {
   let list = [];
   try {
     const raw = localStorage.getItem('scorewizz_all_tournaments_v4');
@@ -5900,9 +6211,17 @@ function getAllTournamentsList() {
   } catch (e) {
     list = [];
   }
+  return list;
+}
 
-  // Ensure current active tournament is included
+function getAllTournamentsList() {
+  let list = getAllTournamentsRaw();
+
+  // Ensure current active tournament is included with owner
   if (appState.tournament && appState.tournament.id) {
+    if (!appState.tournament.owner) {
+      appState.tournament.owner = appState.adminName || 'Suraj';
+    }
     const idx = list.findIndex((t) => t.id === appState.tournament.id);
     if (idx >= 0) {
       list[idx] = appState.tournament;
@@ -5911,15 +6230,21 @@ function getAllTournamentsList() {
     }
   }
 
+  // Filter based on user role: Admins only see their own private tournaments!
+  if (appState.userRole === 'admin') {
+    const currentAdmin = (appState.adminName || 'Suraj').toLowerCase();
+    return list.filter((t) => (t.owner || 'Suraj').toLowerCase() === currentAdmin);
+  }
+
+  // Viewers can see all public tournaments
   return list;
 }
 
 function saveTournamentToDirectory(tour) {
   if (!tour || !tour.id) return;
   try {
-    let list = [];
-    const raw = localStorage.getItem('scorewizz_all_tournaments_v4');
-    if (raw) list = JSON.parse(raw);
+    if (!tour.owner) tour.owner = appState.adminName || 'Suraj';
+    let list = getAllTournamentsRaw();
     const idx = list.findIndex((t) => t.id === tour.id);
     if (idx >= 0) {
       list[idx] = tour;
@@ -5962,9 +6287,18 @@ function getTournamentChampion(tour) {
 }
 
 function setActiveTournament(tourId) {
-  const list = getAllTournamentsList();
-  const target = list.find((t) => t.id === tourId);
+  const rawList = getAllTournamentsRaw();
+  const target = rawList.find((t) => t.id === tourId);
   if (!target) return;
+
+  if (appState.userRole === 'admin') {
+    const currentAdmin = (appState.adminName || 'Suraj').toLowerCase();
+    const tourOwner = (target.owner || 'Suraj').toLowerCase();
+    if (tourOwner !== currentAdmin) {
+      showToast(`Access denied: Tournament belongs to ${target.owner || 'another admin'}.`);
+      return;
+    }
+  }
 
   appState.tournament = target;
   saveToLocalStorage(true);
@@ -5983,27 +6317,37 @@ function setActiveTournament(tourId) {
 }
 
 async function deleteTournamentById(tourId) {
-  const list = getAllTournamentsList();
-  const target = list.find((t) => t.id === tourId);
+  const rawList = getAllTournamentsRaw();
+  const target = rawList.find((t) => t.id === tourId);
   const name = target?.name || 'this tournament';
+
+  if (appState.userRole === 'admin') {
+    const currentAdmin = (appState.adminName || 'Suraj').toLowerCase();
+    const tourOwner = (target?.owner || 'Suraj').toLowerCase();
+    if (tourOwner !== currentAdmin) {
+      showToast(`Access denied: You cannot delete another user's tournament.`);
+      return;
+    }
+  }
 
   if (!confirm(`Are you sure you want to delete '${name}'? This cannot be undone.`)) {
     return;
   }
 
-  const updatedList = list.filter((t) => t.id !== tourId);
+  const updatedList = rawList.filter((t) => t.id !== tourId);
   localStorage.setItem('scorewizz_all_tournaments_v4', JSON.stringify(updatedList));
 
-  apiFetch(`/api/tournaments/${tourId}`, 'DELETE');
+  apiFetch(`/api/tournaments/${tourId}?owner=${encodeURIComponent(appState.adminName || 'Suraj')}`, 'DELETE');
 
   // If deleted the active tournament, switch to another or reset default
   if (appState.tournament?.id === tourId) {
-    if (updatedList.length > 0) {
-      appState.tournament = updatedList[0];
+    const adminTours = updatedList.filter((t) => (t.owner || 'Suraj').toLowerCase() === (appState.adminName || 'Suraj').toLowerCase());
+    if (adminTours.length > 0) {
+      appState.tournament = adminTours[0];
       saveToLocalStorage(true);
       if (appState.tournament.fixtures?.[0]) initMatchFromFixture(appState.tournament.fixtures[0]);
     } else {
-      createDefaultTournament();
+      createDefaultTournament(appState.adminName || 'Suraj');
     }
   }
 
@@ -6070,10 +6414,12 @@ function renderAllTournamentsView() {
 
   if (displayed.length === 0) {
     container.innerHTML = `
-      <div class="panel" style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
-        <h3 style="color: var(--ink); margin-bottom: 8px;">No tournaments found</h3>
-        <p class="muted" style="margin-bottom: 18px;">${searchQuery ? 'No tournaments match your search.' : `No ${filter !== 'all' ? filter : ''} tournaments found in directory.`}</p>
-        <button class="btn btn-primary" onclick="openTournamentWizard()">＋ Create New Tournament</button>
+      <div class="panel" style="grid-column: 1 / -1; text-align: center; padding: 48px 24px; border: 2px dashed var(--coral); background: var(--bg-card);">
+        <h3 style="color: var(--ink); margin-bottom: 8px; font-size: 20px;">No tournaments in workspace</h3>
+        <p class="muted" style="margin-bottom: 20px; max-width: 520px; margin-left: auto; margin-right: auto; line-height: 1.5;">
+          ${searchQuery ? 'No tournaments match your search.' : `Welcome, ${appState.adminName || 'User'}! You have not created any tournaments yet. Click below to create your first tournament.`}
+        </p>
+        <button class="btn btn-primary btn-lg admin-only" onclick="openTournamentWizard()" style="padding: 12px 28px; font-weight: 700; cursor: pointer;">＋ Create Your First Tournament</button>
       </div>
     `;
     return;
@@ -6101,6 +6447,9 @@ function renderAllTournamentsView() {
               <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px;">
                 <span class="badge" style="background: ${isCompleted ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; color: ${isCompleted ? 'var(--gold)' : '#10b981'}; font-weight: 700; font-size: 10px; padding: 3px 8px; border-radius: var(--radius-full);">
                   ${isCompleted ? 'COMPLETED' : 'RUNNING'}
+                </span>
+                <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--blue); font-weight: 700; font-size: 10px; padding: 3px 8px; border-radius: var(--radius-full);">
+                  OWNER: ${t.owner || 'Suraj'}
                 </span>
                 ${t.isActive ? `<span class="badge" style="background: rgba(237, 106, 78, 0.15); color: var(--coral); font-weight: 700; font-size: 10px; padding: 3px 8px; border-radius: var(--radius-full);">CURRENT ACTIVE</span>` : ''}
               </div>

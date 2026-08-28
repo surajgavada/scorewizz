@@ -32,6 +32,7 @@ def init_db():
                 points_win INTEGER NOT NULL DEFAULT 2,
                 points_tie INTEGER NOT NULL DEFAULT 1,
                 status TEXT NOT NULL DEFAULT 'active',
+                owner TEXT DEFAULT 'Suraj',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -142,6 +143,10 @@ def init_db():
             pass
         try:
             cursor.execute("ALTER TABLE fixtures ADD COLUMN next_slot INTEGER")
+        except Exception:
+            pass
+        try:
+            cursor.execute("ALTER TABLE tournaments ADD COLUMN owner TEXT DEFAULT 'Suraj'")
         except Exception:
             pass
             
@@ -376,6 +381,7 @@ def create_tournament_with_squads(tournament_data):
     name = tournament_data.get('name', 'Premier Cricket Championship')
     overs = int(tournament_data.get('overs', 20))
     format_name = tournament_data.get('format', 'T20')
+    owner = tournament_data.get('owner') or tournament_data.get('created_by') or 'Suraj'
     teams_data = tournament_data.get('teams', [])
     schedule_mode = tournament_data.get('schedule_mode', 'auto') # 'auto', 'knockout', or 'manual'
     rounds_count = int(tournament_data.get('rounds_count', 1))
@@ -385,9 +391,9 @@ def create_tournament_with_squads(tournament_data):
         cursor = conn.cursor()
         
         cursor.execute("""
-            INSERT OR REPLACE INTO tournaments (id, name, overs, format, points_win, points_tie, status)
-            VALUES (?, ?, ?, ?, 2, 1, 'active')
-        """, (tournament_id, name, overs, format_name))
+            INSERT OR REPLACE INTO tournaments (id, name, overs, format, points_win, points_tie, status, owner)
+            VALUES (?, ?, ?, ?, 2, 1, 'active', ?)
+        """, (tournament_id, name, overs, format_name, owner))
         
         created_teams = []
         for idx, t in enumerate(teams_data):
@@ -456,23 +462,34 @@ def create_tournament_with_squads(tournament_data):
         conn.commit()
         return tournament_id
 
-def get_tournaments_list():
-    """Returns all tournaments"""
+def get_tournaments_list(owner=None):
+    """Returns tournaments, optionally filtered by owner."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM tournaments ORDER BY created_at DESC")
+        if owner and str(owner).strip():
+            cursor.execute("SELECT * FROM tournaments WHERE LOWER(COALESCE(owner, 'Suraj')) = LOWER(?) ORDER BY created_at DESC", (owner.strip(),))
+        else:
+            cursor.execute("SELECT * FROM tournaments ORDER BY created_at DESC")
         return [dict(r) for r in cursor.fetchall()]
 
-def delete_tournament(tournament_id):
+def delete_tournament(tournament_id, owner=None):
     """Deletes a tournament and its associated records."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM matches WHERE tournament_id = ?", (tournament_id,))
-        cursor.execute("DELETE FROM fixtures WHERE tournament_id = ?", (tournament_id,))
-        cursor.execute("DELETE FROM points_table WHERE tournament_id = ?", (tournament_id,))
-        cursor.execute("DELETE FROM players WHERE tournament_id = ?", (tournament_id,))
-        cursor.execute("DELETE FROM teams WHERE tournament_id = ?", (tournament_id,))
-        cursor.execute("DELETE FROM tournaments WHERE id = ?", (tournament_id,))
+        if owner and str(owner).strip():
+            cursor.execute("DELETE FROM matches WHERE tournament_id = ? AND tournament_id IN (SELECT id FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?))", (tournament_id, tournament_id, owner.strip()))
+            cursor.execute("DELETE FROM fixtures WHERE tournament_id = ? AND tournament_id IN (SELECT id FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?))", (tournament_id, tournament_id, owner.strip()))
+            cursor.execute("DELETE FROM points_table WHERE tournament_id = ? AND tournament_id IN (SELECT id FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?))", (tournament_id, tournament_id, owner.strip()))
+            cursor.execute("DELETE FROM players WHERE tournament_id = ? AND tournament_id IN (SELECT id FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?))", (tournament_id, tournament_id, owner.strip()))
+            cursor.execute("DELETE FROM teams WHERE tournament_id = ? AND tournament_id IN (SELECT id FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?))", (tournament_id, tournament_id, owner.strip()))
+            cursor.execute("DELETE FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?)", (tournament_id, owner.strip()))
+        else:
+            cursor.execute("DELETE FROM matches WHERE tournament_id = ?", (tournament_id,))
+            cursor.execute("DELETE FROM fixtures WHERE tournament_id = ?", (tournament_id,))
+            cursor.execute("DELETE FROM points_table WHERE tournament_id = ?", (tournament_id,))
+            cursor.execute("DELETE FROM players WHERE tournament_id = ?", (tournament_id,))
+            cursor.execute("DELETE FROM teams WHERE tournament_id = ?", (tournament_id,))
+            cursor.execute("DELETE FROM tournaments WHERE id = ?", (tournament_id,))
         conn.commit()
         return True
 
