@@ -1,0 +1,3 @@
+# ScoreWizz Cricket Tournament Platform
+# Built using Python Standard Library (http.server, sqlite3, json, os, urllib)
+# No external third-party dependencies required.
