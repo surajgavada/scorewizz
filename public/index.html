@@ -188,6 +188,7 @@
               <button class="btn btn-sm btn-outline admin-only" id="openPlaying11Btn" title="Playing 11 Lineup">Playing 11</button>
               <button class="btn btn-sm btn-outline admin-only" id="openTossBtn" title="Set / Change Toss">Toss</button>
               <button class="btn btn-sm btn-outline admin-only" id="openAdjustOversBtn" title="Reduce / Adjust Match Overs" style="color: var(--amber); border-color: rgba(245, 158, 11, 0.4); font-weight: 600;">Overs: <span id="currentOversBtnTag">20</span></button>
+              <button class="btn btn-sm btn-outline admin-only" id="openWalkoverBtn" title="Opponent not available / Award walkover win" style="color: var(--amber); border-color: rgba(245, 158, 11, 0.4); font-weight: 600;">Walkover</button>
               <span class="innings-tag" id="inningsBadge">1st Innings</span>
               <button class="btn btn-sm btn-outline admin-only" id="switchInningsBtn">End Innings</button>
             </div>
@@ -1814,6 +1815,79 @@
         <div class="modal-footer" style="justify-content: flex-end; gap: 8px;">
           <button class="btn btn-ghost" id="cancelAdjustOversBtn">Cancel</button>
           <button class="btn btn-primary" id="saveAdjustOversBtn" style="font-weight: 700;">Apply New Overs</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 9. WALKOVER / FORFEIT WIN MODAL (Opposite team not available) -->
+    <div class="modal-backdrop" id="walkoverModal">
+      <div class="modal-card" style="max-width: 500px;">
+        <div class="modal-header">
+          <div>
+            <span class="competition" style="color: var(--amber);">OPPONENT NOT AVAILABLE / FORFEIT</span>
+            <h3 style="font-size: 18px; margin-top: 4px;">Award Match Walkover</h3>
+          </div>
+          <button class="modal-close" id="closeWalkoverBtn">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 16px 0;">
+          <div class="panel mb-3" style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.3); padding: 12px 14px;">
+            <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--amber); margin-bottom: 4px;" id="walkoverFixtureTag">MATCH #1 • SCHEDULED</div>
+            <strong style="font-size: 15px; color: var(--ink); display: block;" id="walkoverMatchTitle">Riverside Strikers vs North Stars</strong>
+          </div>
+
+          <div class="form-group mb-3">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink); margin-bottom: 8px; display: block;">
+              Select Team Present (Award Winner):
+            </label>
+            <div style="display: flex; flex-direction: column; gap: 8px;" id="walkoverTeamsContainer">
+              <!-- Team 1 Option Card -->
+              <label style="display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; background: var(--bg-surface); padding: 10px 14px; border-radius: var(--radius-sm); border: 2px solid var(--border);" id="walkoverOptTeam1Card">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <input type="radio" name="walkoverWinnerTeam" id="walkoverWinnerTeam1" value="team1" checked />
+                  <div>
+                    <strong style="font-size: 14px; color: var(--ink); display: block;" id="walkoverTeam1Name">Team 1</strong>
+                    <small class="muted" id="walkoverTeam1Sub">Opposite team unavailable</small>
+                  </div>
+                </div>
+                <span class="role-badge" style="background: rgba(16, 185, 129, 0.15); color: #047857; font-weight: 700;">WINNER</span>
+              </label>
+
+              <!-- Team 2 Option Card -->
+              <label style="display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; background: var(--bg-surface); padding: 10px 14px; border-radius: var(--radius-sm); border: 2px solid var(--border);" id="walkoverOptTeam2Card">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <input type="radio" name="walkoverWinnerTeam" id="walkoverWinnerTeam2" value="team2" />
+                  <div>
+                    <strong style="font-size: 14px; color: var(--ink); display: block;" id="walkoverTeam2Name">Team 2</strong>
+                    <small class="muted" id="walkoverTeam2Sub">Opposite team unavailable</small>
+                  </div>
+                </div>
+                <span class="role-badge" style="background: rgba(16, 185, 129, 0.15); color: #047857; font-weight: 700;">WINNER</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group mb-3">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink); margin-bottom: 6px; display: block;">
+              Reason / Match Note:
+            </label>
+            <select id="walkoverReasonSelect" class="form-control" style="margin-bottom: 8px;">
+              <option value="Opposite team not available / Did not report">Opposite team not available / Did not report</option>
+              <option value="Opponent forfeited match">Opponent forfeited match</option>
+              <option value="Late arrival / Team disqualified">Late arrival / Team disqualified</option>
+              <option value="Insufficient players present">Insufficient players present (< 7 players)</option>
+              <option value="custom">Custom Reason...</option>
+            </select>
+            <input type="text" id="walkoverCustomReasonInput" class="form-control" placeholder="Enter custom reason..." style="display: none;" />
+          </div>
+
+          <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12px; color: var(--ink-muted); line-height: 1.5;">
+            <strong>Tournament Impact:</strong> The selected team gets full win points (+2 PTS in points table), advances to the next knockout round (if applicable), and the match is marked completed.
+          </div>
+        </div>
+
+        <div class="modal-footer" style="justify-content: flex-end; gap: 8px;">
+          <button class="btn btn-ghost" id="cancelWalkoverBtn">Cancel</button>
+          <button class="btn btn-primary" id="confirmWalkoverBtn" style="font-weight: 700; background: #047857; border-color: #047857;">Confirm Walkover Win</button>
         </div>
       </div>
     </div>

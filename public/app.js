@@ -1308,6 +1308,245 @@ window.saveAdjustOvers = function () {
   );
 };
 
+// ----------------------------------------------------
+// WALKOVER / FORFEIT WIN ENGINE (Opponent Unavailable)
+// ----------------------------------------------------
+
+let walkoverContext = null;
+
+window.openWalkoverModal = function (fixtureId = null) {
+  if (appState.userRole !== 'admin') {
+    showToast('Only Tournament Owner / Admin can award walkovers.');
+    return;
+  }
+
+  const tour = appState.tournament;
+  let targetFix = null;
+  let t1 = null;
+  let t2 = null;
+
+  if (fixtureId && tour?.fixtures) {
+    targetFix = tour.fixtures.find((f) => f.id === fixtureId);
+    if (targetFix) {
+      t1 = tour.teams?.find((t) => t.id === targetFix.team1_id) || { id: targetFix.team1_id, name: targetFix.team1_name || 'Team 1', short_name: targetFix.team1_short || 'T1', color: targetFix.team1_color || '#ed6a4e' };
+      t2 = tour.teams?.find((t) => t.id === targetFix.team2_id) || { id: targetFix.team2_id, name: targetFix.team2_name || 'Team 2', short_name: targetFix.team2_short || 'T2', color: targetFix.team2_color || '#3b82f6' };
+    }
+  } else if (appState.activeMatch) {
+    t1 = appState.activeMatch.team1;
+    t2 = appState.activeMatch.team2;
+    targetFix = tour?.fixtures?.find((f) => f.id === appState.activeMatch.fixture_id) || null;
+  }
+
+  if (!t1 || !t2) {
+    showToast('Cannot award walkover: Match fixture teams not found.');
+    return;
+  }
+
+  if (String(t1.id).startsWith('TBD') || String(t2.id).startsWith('TBD')) {
+    showToast('Cannot award walkover on a match where teams are not yet determined.');
+    return;
+  }
+
+  walkoverContext = {
+    fixture: targetFix,
+    team1: t1,
+    team2: t2
+  };
+
+  const modal = document.querySelector('#walkoverModal');
+  if (!modal) return;
+
+  const tagEl = document.querySelector('#walkoverFixtureTag');
+  if (tagEl) {
+    tagEl.textContent = targetFix ? `${targetFix.stage ? targetFix.stage.toUpperCase() : `MATCH #${targetFix.match_number}`} • SCHEDULED` : 'LIVE MATCH';
+  }
+
+  const titleEl = document.querySelector('#walkoverMatchTitle');
+  if (titleEl) {
+    titleEl.textContent = `${t1.name} vs ${t2.name}`;
+  }
+
+  const t1NameEl = document.querySelector('#walkoverTeam1Name');
+  if (t1NameEl) t1NameEl.textContent = t1.name;
+  const t1SubEl = document.querySelector('#walkoverTeam1Sub');
+  if (t1SubEl) t1SubEl.textContent = `Award win to ${t1.name} (${t2.name} unavailable)`;
+
+  const t2NameEl = document.querySelector('#walkoverTeam2Name');
+  if (t2NameEl) t2NameEl.textContent = t2.name;
+  const t2SubEl = document.querySelector('#walkoverTeam2Sub');
+  if (t2SubEl) t2SubEl.textContent = `Award win to ${t2.name} (${t1.name} unavailable)`;
+
+  const r1 = document.querySelector('#walkoverWinnerTeam1');
+  if (r1) r1.checked = true;
+
+  const reasonSel = document.querySelector('#walkoverReasonSelect');
+  if (reasonSel) reasonSel.value = 'Opposite team not available / Did not report';
+
+  const customInput = document.querySelector('#walkoverCustomReasonInput');
+  if (customInput) {
+    customInput.value = '';
+    customInput.style.display = 'none';
+  }
+
+  modal.classList.add('show');
+};
+
+window.closeWalkoverModal = function () {
+  const modal = document.querySelector('#walkoverModal');
+  if (modal) modal.classList.remove('show');
+  walkoverContext = null;
+};
+
+window.handleConfirmWalkover = function () {
+  if (!walkoverContext) return;
+  const { fixture, team1, team2 } = walkoverContext;
+
+  const winnerRadio = document.querySelector('input[name="walkoverWinnerTeam"]:checked');
+  const isTeam1Winner = winnerRadio ? winnerRadio.value === 'team1' : true;
+
+  const winningTeam = isTeam1Winner ? team1 : team2;
+  const forfeitingTeam = isTeam1Winner ? team2 : team1;
+
+  const reasonSel = document.querySelector('#walkoverReasonSelect');
+  const customInput = document.querySelector('#walkoverCustomReasonInput');
+  let reason = reasonSel ? reasonSel.value : 'Opposite team not available';
+  if (reason === 'custom') {
+    reason = customInput?.value?.trim() || 'Opposite team not available';
+  }
+
+  const resultText = `${winningTeam.name} won by Walkover (${forfeitingTeam.name} not available)`;
+  const victoryMargin = 'by Walkover';
+
+  const tour = appState.tournament;
+
+  // 1. Create walkover match state
+  const walkoverMatch = {
+    id: `walkover_${Date.now()}`,
+    tournament_id: tour?.id || null,
+    fixture_id: fixture?.id || appState.activeMatch?.fixture_id || null,
+    overs_limit: tour?.overs || 20,
+    team1: { ...team1 },
+    team2: { ...team2 },
+    current_innings: 2,
+    innings1: {
+      batting_team_id: team1.id,
+      batting_team_name: team1.name,
+      batting_team_short: team1.short_name || team1.name.substring(0, 3).toUpperCase(),
+      bowling_team_id: team2.id,
+      bowling_team_name: team2.name,
+      bowling_team_short: team2.short_name || team2.name.substring(0, 3).toUpperCase(),
+      runs: 0,
+      wickets: 0,
+      balls: 0,
+      extras: { wides: 0, no_balls: 0, byes: 0, leg_byes: 0, total: 0 },
+      batters: [],
+      bowlers: [],
+      is_completed: true
+    },
+    innings2: {
+      batting_team_id: team2.id,
+      batting_team_name: team2.name,
+      batting_team_short: team2.short_name || team2.name.substring(0, 3).toUpperCase(),
+      bowling_team_id: team1.id,
+      bowling_team_name: team1.name,
+      bowling_team_short: team1.short_name || team1.name.substring(0, 3).toUpperCase(),
+      runs: 0,
+      wickets: 0,
+      balls: 0,
+      extras: { wides: 0, no_balls: 0, byes: 0, leg_byes: 0, total: 0 },
+      batters: [],
+      bowlers: [],
+      is_completed: true
+    },
+    is_match_completed: true,
+    is_walkover: true,
+    winner_team_id: winningTeam.id,
+    victory_margin: victoryMargin,
+    result_text: resultText,
+    notes: reason
+  };
+
+  // 2. Update Active Match
+  if (!appState.activeMatch || (fixture && appState.activeMatch.fixture_id === fixture.id)) {
+    appState.activeMatch = walkoverMatch;
+  } else if (appState.activeMatch && appState.activeMatch.team1.id === team1.id && appState.activeMatch.team2.id === team2.id) {
+    appState.activeMatch = walkoverMatch;
+  }
+
+  // 3. Update Points Table directly
+  if (tour && tour.points_table) {
+    const wRow = tour.points_table.find((r) => r.team_id === winningTeam.id);
+    const lRow = tour.points_table.find((r) => r.team_id === forfeitingTeam.id);
+
+    if (wRow) {
+      wRow.played = (wRow.played || 0) + 1;
+      wRow.won = (wRow.won || 0) + 1;
+      wRow.points = (wRow.points || 0) + 2;
+      wRow.form = ['W', ...(wRow.form || [])].slice(0, 5);
+    }
+    if (lRow) {
+      lRow.played = (lRow.played || 0) + 1;
+      lRow.lost = (lRow.lost || 0) + 1;
+      lRow.form = ['L', ...(lRow.form || [])].slice(0, 5);
+    }
+    tour.points_table.sort((a, b) => b.points - a.points || b.net_run_rate - a.net_run_rate || b.won - a.won);
+  }
+
+  // 4. Update Fixture & Knockout Advancement
+  if (tour && tour.fixtures) {
+    const fixToUpdate = fixture ? tour.fixtures.find((f) => f.id === fixture.id) : tour.fixtures.find((f) => f.team1_id === team1.id && f.team2_id === team2.id && f.status !== 'completed');
+    if (fixToUpdate) {
+      fixToUpdate.status = 'completed';
+      fixToUpdate.is_completed = true;
+      fixToUpdate.winner_team_id = winningTeam.id;
+      fixToUpdate.result_text = resultText;
+      fixToUpdate.victory_margin = victoryMargin;
+      fixToUpdate.is_walkover = true;
+      fixToUpdate.match_state = walkoverMatch;
+
+      // Knockout bracket auto-advancement
+      if (fixToUpdate.next_fixture_id && winningTeam.id) {
+        const nextFix = tour.fixtures.find((f) => f.id === fixToUpdate.next_fixture_id);
+        if (nextFix) {
+          if (fixToUpdate.next_slot === 1 || String(nextFix.team1_id).startsWith('TBD')) {
+            nextFix.team1_id = winningTeam.id;
+            nextFix.team1_name = winningTeam.name;
+            nextFix.team1_short = winningTeam.short_name;
+            nextFix.team1_color = winningTeam.color;
+          } else {
+            nextFix.team2_id = winningTeam.id;
+            nextFix.team2_name = winningTeam.name;
+            nextFix.team2_short = winningTeam.short_name;
+            nextFix.team2_color = winningTeam.color;
+          }
+        }
+      }
+    }
+    saveTournamentToDirectory(tour);
+  }
+
+  saveToLocalStorage();
+
+  // Sync to Backend
+  apiFetch('/api/matches', 'POST', {
+    tournament_id: tour?.id || null,
+    fixture_id: fixture?.id || walkoverMatch.fixture_id || null,
+    team1_id: team1.id,
+    team2_id: team2.id,
+    winner_id: winningTeam.id,
+    winner_team_id: winningTeam.id,
+    is_walkover: true,
+    result_text: resultText,
+    victory_margin: victoryMargin,
+    innings1: walkoverMatch.innings1,
+    innings2: walkoverMatch.innings2
+  });
+
+  closeWalkoverModal();
+  renderAllViews();
+  showToast(`Walkover awarded: ${winningTeam.name} won the match!`);
+};
+
 function initMatchFromFixture(fixture) {
   const tour = appState.tournament;
   if (!tour || !tour.teams) return;
@@ -2603,11 +2842,14 @@ function renderScoreboardView() {
     sideTourOversText.textContent = `${appState.tournament?.overs || 20} Overs per Match`;
   }
 
+  const walkoverBtn = document.querySelector('#openWalkoverBtn');
+
   if (match.is_match_completed) {
     if (scoringPanel) scoringPanel.style.display = 'none';
     if (openP11Btn) openP11Btn.style.display = 'none';
     if (openTossBtn) openTossBtn.style.display = 'none';
     if (adjOversBtn) adjOversBtn.style.display = 'none';
+    if (walkoverBtn) walkoverBtn.style.display = 'none';
     if (swInnBtn) swInnBtn.style.display = 'none';
     if (resetBtn) resetBtn.style.display = 'none';
     if (chgBowlBtn) chgBowlBtn.style.display = 'none';
@@ -2715,6 +2957,7 @@ function renderScoreboardView() {
       if (openP11Btn) openP11Btn.style.display = 'inline-flex';
       if (openTossBtn) openTossBtn.style.display = 'inline-flex';
       if (adjOversBtn) adjOversBtn.style.display = 'inline-flex';
+      if (walkoverBtn) walkoverBtn.style.display = 'inline-flex';
       if (swInnBtn) swInnBtn.style.display = 'inline-flex';
       if (resetBtn) resetBtn.style.display = 'inline-flex';
       if (chgBowlBtn) chgBowlBtn.style.display = 'inline-flex';
@@ -2952,9 +3195,19 @@ function renderFixturesView() {
         </div>
         ${fix.result_text ? `<div class="fixture-result-note">${fix.result_text}</div>` : `<div class="muted"> ${fix.venue || 'Stadium'}</div>`}
         <div style="margin-top: auto; padding-top: 10px;">
-          <button class="btn btn-sm ${isCompleted ? 'btn-outline' : (isTbd1 || isTbd2 ? 'btn-ghost' : 'btn-primary')} btn-block" onclick="startMatchFromSchedule('${fix.id}')" ${isTbd1 || isTbd2 ? 'style="opacity: 0.6;"' : ''}>
-            ${isCompleted ? 'View Result' : (isTbd1 || isTbd2 ? 'Awaiting Previous Round' : 'Score This Match →')}
-          </button>
+          ${isCompleted
+            ? `<button class="btn btn-sm btn-outline btn-block" onclick="startMatchFromSchedule('${fix.id}')">View Result</button>`
+            : (isTbd1 || isTbd2
+              ? `<button class="btn btn-sm btn-ghost btn-block" onclick="startMatchFromSchedule('${fix.id}')" style="opacity: 0.6;">Awaiting Previous Round</button>`
+              : (appState.userRole === 'admin'
+                ? `<div style="display: flex; gap: 6px;">
+                     <button class="btn btn-sm btn-primary" style="flex: 1;" onclick="startMatchFromSchedule('${fix.id}')">Score Match →</button>
+                     <button class="btn btn-sm btn-outline admin-only" title="Opponent not available / Award walkover win" style="color: var(--amber); border-color: rgba(245, 158, 11, 0.4); font-size: 11px; padding: 6px 10px;" onclick="openWalkoverModal('${fix.id}')">Walkover</button>
+                   </div>`
+                : `<button class="btn btn-sm btn-primary btn-block" onclick="startMatchFromSchedule('${fix.id}')">View Match</button>`
+              )
+            )
+          }
         </div>
       `;
       grid.appendChild(card);
@@ -3857,6 +4110,46 @@ function setupEventListeners() {
 
   const saveAdjustOversBtn = document.querySelector('#saveAdjustOversBtn');
   if (saveAdjustOversBtn) saveAdjustOversBtn.onclick = () => window.saveAdjustOvers();
+
+  // Walkover / Forfeit Modal Actions (Opponent Unavailable)
+  const openWalkoverBtn = document.querySelector('#openWalkoverBtn');
+  if (openWalkoverBtn) {
+    openWalkoverBtn.onclick = () => window.openWalkoverModal();
+  }
+
+  const closeWalkoverBtn = document.querySelector('#closeWalkoverBtn');
+  if (closeWalkoverBtn) closeWalkoverBtn.onclick = () => window.closeWalkoverModal();
+
+  const cancelWalkoverBtn = document.querySelector('#cancelWalkoverBtn');
+  if (cancelWalkoverBtn) cancelWalkoverBtn.onclick = () => window.closeWalkoverModal();
+
+  const confirmWalkoverBtn = document.querySelector('#confirmWalkoverBtn');
+  if (confirmWalkoverBtn) confirmWalkoverBtn.onclick = () => window.handleConfirmWalkover();
+
+  const walkoverReasonSel = document.querySelector('#walkoverReasonSelect');
+  const walkoverCustomInput = document.querySelector('#walkoverCustomReasonInput');
+  if (walkoverReasonSel && walkoverCustomInput) {
+    walkoverReasonSel.onchange = () => {
+      walkoverCustomInput.style.display = walkoverReasonSel.value === 'custom' ? 'block' : 'none';
+      if (walkoverReasonSel.value === 'custom') walkoverCustomInput.focus();
+    };
+  }
+
+  const optWk1Card = document.querySelector('#walkoverOptTeam1Card');
+  if (optWk1Card) {
+    optWk1Card.onclick = () => {
+      const r = document.querySelector('#walkoverWinnerTeam1');
+      if (r) r.checked = true;
+    };
+  }
+
+  const optWk2Card = document.querySelector('#walkoverOptTeam2Card');
+  if (optWk2Card) {
+    optWk2Card.onclick = () => {
+      const r = document.querySelector('#walkoverWinnerTeam2');
+      if (r) r.checked = true;
+    };
+  }
 
   const confirmTossBtn = document.querySelector('#confirmTossBtn');
   if (confirmTossBtn) confirmTossBtn.onclick = () => handleConfirmToss();

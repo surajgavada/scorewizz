@@ -658,26 +658,28 @@ def delete_tournament(tournament_id, owner=None):
 def update_points_table_after_match(tournament_id, match_data):
     """
     Updates the points table and player tournament statistics after a match is concluded.
+    Supports standard matches, ties, super overs, and walkovers.
     """
     with get_db() as conn:
         cursor = conn.cursor()
         
-        team1_id = match_data.get('team1_id')
-        team2_id = match_data.get('team2_id')
-        winner_id = match_data.get('winner_id')
+        team1_id = match_data.get('team1_id') or (match_data.get('team1') if isinstance(match_data.get('team1'), str) else match_data.get('team1', {}).get('id'))
+        team2_id = match_data.get('team2_id') or (match_data.get('team2') if isinstance(match_data.get('team2'), str) else match_data.get('team2', {}).get('id'))
+        winner_id = match_data.get('winner_id') or match_data.get('winner_team_id')
         is_tie = match_data.get('is_tie', False)
+        is_walkover = match_data.get('is_walkover', False)
         
         # Innings details
         inn1 = match_data.get('innings1', {})
         inn2 = match_data.get('innings2', {})
         
         batting_team1 = inn1.get('batting_team_id')
-        runs1 = int(inn1.get('total_runs', 0))
-        balls1 = int(inn1.get('total_legal_balls', 0))
+        runs1 = int(inn1.get('total_runs', inn1.get('runs', 0)))
+        balls1 = int(inn1.get('total_legal_balls', inn1.get('balls', 0)))
         
         batting_team2 = inn2.get('batting_team_id')
-        runs2 = int(inn2.get('total_runs', 0))
-        balls2 = int(inn2.get('total_legal_balls', 0))
+        runs2 = int(inn2.get('total_runs', inn2.get('runs', 0)))
+        balls2 = int(inn2.get('total_legal_balls', inn2.get('balls', 0)))
         
         for team_id in [team1_id, team2_id]:
             if not team_id:
@@ -719,16 +721,17 @@ def update_points_table_after_match(tournament_id, match_data):
             team_runs_conceded = row['runs_conceded']
             team_balls_bowled = row['balls_bowled']
             
-            if team_id == batting_team1:
-                team_runs_scored += runs1
-                team_balls_faced += balls1
-                team_runs_conceded += runs2
-                team_balls_bowled += balls2
-            else:
-                team_runs_scored += runs2
-                team_balls_faced += balls2
-                team_runs_conceded += runs1
-                team_balls_bowled += balls1
+            if not is_walkover:
+                if team_id == batting_team1:
+                    team_runs_scored += runs1
+                    team_balls_faced += balls1
+                    team_runs_conceded += runs2
+                    team_balls_bowled += balls2
+                else:
+                    team_runs_scored += runs2
+                    team_balls_faced += balls2
+                    team_runs_conceded += runs1
+                    team_balls_bowled += balls1
                 
             overs_faced_val = (team_balls_faced // 6) + ((team_balls_faced % 6) / 6.0)
             overs_bowled_val = (team_balls_bowled // 6) + ((team_balls_bowled % 6) / 6.0)
@@ -746,62 +749,63 @@ def update_points_table_after_match(tournament_id, match_data):
             """, (played, won, lost, tied, points, team_runs_scored, team_balls_faced,
                   team_runs_conceded, team_balls_bowled, nrr, json.dumps(form), tournament_id, team_id))
         
-        # Update player tournament career stats
-        for inn in [inn1, inn2]:
-            batters = inn.get('batters', [])
-            for b in batters:
-                p_id = b.get('player_id')
-                if not p_id:
-                    continue
-                r = int(b.get('runs', 0))
-                bf = int(b.get('balls', 0))
-                fours = int(b.get('fours', 0))
-                sixes = int(b.get('sixes', 0))
-                is_out = b.get('is_out', False)
-                
-                cursor.execute("SELECT * FROM players WHERE id = ?", (p_id,))
-                p_row = cursor.fetchone()
-                if p_row:
-                    new_runs = p_row['runs'] + r
-                    new_bf = p_row['balls_faced'] + bf
-                    new_fours = p_row['fours'] + fours
-                    new_sixes = p_row['sixes'] + sixes
-                    new_hs = max(p_row['high_score'], r)
-                    new_50s = p_row['fifties'] + (1 if 50 <= r < 100 else 0)
-                    new_100s = p_row['hundreds'] + (1 if r >= 100 else 0)
-                    new_not_outs = p_row['not_outs'] + (0 if is_out else 1)
-                    new_matches = p_row['matches'] + 1
+        # Update player tournament career stats if not a walkover
+        if not is_walkover:
+            for inn in [inn1, inn2]:
+                batters = inn.get('batters', [])
+                for b in batters:
+                    p_id = b.get('player_id')
+                    if not p_id:
+                        continue
+                    r = int(b.get('runs', 0))
+                    bf = int(b.get('balls', 0))
+                    fours = int(b.get('fours', 0))
+                    sixes = int(b.get('sixes', 0))
+                    is_out = b.get('is_out', False)
                     
-                    cursor.execute("""
-                        UPDATE players
-                        SET matches = ?, runs = ?, balls_faced = ?, fours = ?, sixes = ?,
-                            high_score = ?, fifties = ?, hundreds = ?, not_outs = ?
-                        WHERE id = ?
-                    """, (new_matches, new_runs, new_bf, new_fours, new_sixes, new_hs, new_50s, new_100s, new_not_outs, p_id))
+                    cursor.execute("SELECT * FROM players WHERE id = ?", (p_id,))
+                    p_row = cursor.fetchone()
+                    if p_row:
+                        new_runs = p_row['runs'] + r
+                        new_bf = p_row['balls_faced'] + bf
+                        new_fours = p_row['fours'] + fours
+                        new_sixes = p_row['sixes'] + sixes
+                        new_hs = max(p_row['high_score'], r)
+                        new_50s = p_row['fifties'] + (1 if 50 <= r < 100 else 0)
+                        new_100s = p_row['hundreds'] + (1 if r >= 100 else 0)
+                        new_not_outs = p_row['not_outs'] + (0 if is_out else 1)
+                        new_matches = p_row['matches'] + 1
+                        
+                        cursor.execute("""
+                            UPDATE players
+                            SET matches = ?, runs = ?, balls_faced = ?, fours = ?, sixes = ?,
+                                high_score = ?, fifties = ?, hundreds = ?, not_outs = ?
+                            WHERE id = ?
+                        """, (new_matches, new_runs, new_bf, new_fours, new_sixes, new_hs, new_50s, new_100s, new_not_outs, p_id))
+                        
+                bowlers = inn.get('bowlers', [])
+                for bw in bowlers:
+                    p_id = bw.get('player_id')
+                    if not p_id:
+                        continue
+                    balls = int(bw.get('legal_balls', 0))
+                    maidens = int(bw.get('maidens', 0))
+                    runs_conc = int(bw.get('runs', 0))
+                    wkts = int(bw.get('wickets', 0))
                     
-            bowlers = inn.get('bowlers', [])
-            for bw in bowlers:
-                p_id = bw.get('player_id')
-                if not p_id:
-                    continue
-                balls = int(bw.get('legal_balls', 0))
-                maidens = int(bw.get('maidens', 0))
-                runs_conc = int(bw.get('runs', 0))
-                wkts = int(bw.get('wickets', 0))
-                
-                cursor.execute("SELECT * FROM players WHERE id = ?", (p_id,))
-                p_row = cursor.fetchone()
-                if p_row:
-                    new_balls_bowled = p_row['balls_bowled'] + balls
-                    new_maidens = p_row['maidens'] + maidens
-                    new_runs_conc = p_row['runs_conceded'] + runs_conc
-                    new_wkts = p_row['wickets'] + wkts
-                    
-                    cursor.execute("""
-                        UPDATE players
-                        SET balls_bowled = ?, maidens = ?, runs_conceded = ?, wickets = ?
-                        WHERE id = ?
-                    """, (new_balls_bowled, new_maidens, new_runs_conc, new_wkts, p_id))
+                    cursor.execute("SELECT * FROM players WHERE id = ?", (p_id,))
+                    p_row = cursor.fetchone()
+                    if p_row:
+                        new_balls_bowled = p_row['balls_bowled'] + balls
+                        new_maidens = p_row['maidens'] + maidens
+                        new_runs_conc = p_row['runs_conceded'] + runs_conc
+                        new_wkts = p_row['wickets'] + wkts
+                        
+                        cursor.execute("""
+                            UPDATE players
+                            SET balls_bowled = ?, maidens = ?, runs_conceded = ?, wickets = ?
+                            WHERE id = ?
+                        """, (new_balls_bowled, new_maidens, new_runs_conc, new_wkts, p_id))
 
         # Update fixture status if match linked to fixture
         fixture_id = match_data.get('fixture_id')
@@ -811,6 +815,18 @@ def update_points_table_after_match(tournament_id, match_data):
                 SET status = 'completed', winner_team_id = ?, result_text = ?, match_data = ?
                 WHERE id = ?
             """, (winner_id, match_data.get('result_text', ''), json.dumps(match_data), fixture_id))
+
+            # Auto-advance winner in knockout bracket if next_fixture_id exists
+            if winner_id:
+                cursor.execute("SELECT next_fixture_id, next_slot FROM fixtures WHERE id = ?", (fixture_id,))
+                fix_row = cursor.fetchone()
+                if fix_row and fix_row['next_fixture_id']:
+                    next_fix_id = fix_row['next_fixture_id']
+                    next_slot = fix_row['next_slot']
+                    if next_slot == 1:
+                        cursor.execute("UPDATE fixtures SET team1_id = ? WHERE id = ? AND (team1_id LIKE 'TBD%' OR team1_id IS NULL)", (winner_id, next_fix_id))
+                    else:
+                        cursor.execute("UPDATE fixtures SET team2_id = ? WHERE id = ? AND (team2_id LIKE 'TBD%' OR team2_id IS NULL)", (winner_id, next_fix_id))
             
         conn.commit()
 
