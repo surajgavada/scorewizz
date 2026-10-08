@@ -1,4 +1,4 @@
-const CACHE_NAME = 'scorewizz-v66';
+const CACHE_NAME = 'scorewizz-v67';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

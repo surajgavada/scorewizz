@@ -96,8 +96,12 @@
         </div>
 
         <div class="tournament-badge-mini" id="sidebarTournamentBadge">
-          <small>CURRENT TOURNAMENT</small>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+            <small>CURRENT TOURNAMENT</small>
+            <button class="btn btn-xs btn-outline admin-only" id="sidebarEditOversBtn" title="Change Tournament Overs" style="font-size: 10px; padding: 1px 5px; color: var(--amber); border-color: rgba(245, 158, 11, 0.4);">Edit Overs</button>
+          </div>
           <strong id="sidebarTournamentName">Premier T20 2026</strong>
+          <small id="sidebarTournamentOversText" style="display: block; color: var(--ink-muted); font-size: 11px; margin-top: 2px;">20 Overs per Match</small>
         </div>
 
         <nav class="main-nav" aria-label="Main navigation">
@@ -183,6 +187,7 @@
             <div class="match-heading-right">
               <button class="btn btn-sm btn-outline admin-only" id="openPlaying11Btn" title="Playing 11 Lineup">Playing 11</button>
               <button class="btn btn-sm btn-outline admin-only" id="openTossBtn" title="Set / Change Toss">Toss</button>
+              <button class="btn btn-sm btn-outline admin-only" id="openAdjustOversBtn" title="Reduce / Adjust Match Overs" style="color: var(--amber); border-color: rgba(245, 158, 11, 0.4); font-weight: 600;">Overs: <span id="currentOversBtnTag">20</span></button>
               <span class="innings-tag" id="inningsBadge">1st Innings</span>
               <button class="btn btn-sm btn-outline admin-only" id="switchInningsBtn">End Innings</button>
             </div>
@@ -1732,6 +1737,83 @@
         </div>
         <div class="modal-footer" style="justify-content: center; border-top: none; padding-top: 8px;">
           <button class="btn btn-ghost" id="cancelExtraRunsBtn" style="font-size: 13px;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. ADJUST / DECREASE OVERS MODAL (Tournament Owner Mid-Tournament / Mid-Match Control) -->
+    <div class="modal-backdrop" id="adjustOversModal">
+      <div class="modal-card" style="max-width: 480px;">
+        <div class="modal-header">
+          <div>
+            <span class="competition" style="color: var(--amber);">TOURNAMENT OWNER CONTROL</span>
+            <h3 style="font-size: 18px; margin-top: 4px;">Reduce / Adjust Match Overs</h3>
+          </div>
+          <button class="modal-close" id="closeAdjustOversBtn">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 16px 0;">
+          <div class="panel mb-3" style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.3); padding: 12px 14px;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+              <span>Current Match Limit:</span>
+              <strong id="adjustCurrentOversVal">20 Overs</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px;">
+              <span>Current Balls Bowled:</span>
+              <strong id="adjustCurrentBallsVal">0.0 Overs (0 balls)</strong>
+            </div>
+          </div>
+
+          <div class="form-group mb-3">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink); margin-bottom: 6px; display: block;">
+              New Overs per Innings:
+            </label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="number" id="adjustOversInput" class="form-control" min="1" max="50" value="10" style="font-size: 16px; font-weight: 700; text-align: center; max-width: 110px;" />
+              <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-xs btn-outline" onclick="window.setAdjustOversQuick(5)">5 Ov</button>
+                <button type="button" class="btn btn-xs btn-outline" onclick="window.setAdjustOversQuick(8)">8 Ov</button>
+                <button type="button" class="btn btn-xs btn-outline" onclick="window.setAdjustOversQuick(10)">10 Ov</button>
+                <button type="button" class="btn btn-xs btn-outline" onclick="window.setAdjustOversQuick(12)">12 Ov</button>
+                <button type="button" class="btn btn-xs btn-outline" onclick="window.setAdjustOversQuick(15)">15 Ov</button>
+              </div>
+            </div>
+            <small class="muted" id="adjustOversMinHint" style="display: block; margin-top: 6px; font-size: 12px;">
+              Must be at least the number of overs already bowled.
+            </small>
+          </div>
+
+          <!-- Scope Selection -->
+          <div class="form-group mb-3">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink); margin-bottom: 6px; display: block;">
+              Apply Change To:
+            </label>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; background: var(--bg-surface); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                <input type="radio" name="adjustOversScope" id="scopeMatchOnly" value="match" checked />
+                <span><strong>Current Match Only</strong> (Rain-shortened / Time adjustment)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; background: var(--bg-surface); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                <input type="radio" name="adjustOversScope" id="scopeTournament" value="tournament" />
+                <span><strong>Tournament & All Remaining Matches</strong> (Mid-tournament rule change)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Target Adjustment (If 2nd innings in progress) -->
+          <div id="adjustTargetSection" style="display: none; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 10px;">
+            <label style="font-weight: 700; font-size: 13px; color: var(--ink); margin-bottom: 4px; display: block;">
+              Revised Target for 2nd Innings:
+            </label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="number" id="adjustTargetInput" class="form-control" min="1" max="999" style="font-size: 15px; font-weight: 700; max-width: 120px;" />
+              <small class="muted">Proportional Target: <strong id="proportionalTargetVal">--</strong></small>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="justify-content: flex-end; gap: 8px;">
+          <button class="btn btn-ghost" id="cancelAdjustOversBtn">Cancel</button>
+          <button class="btn btn-primary" id="saveAdjustOversBtn" style="font-weight: 700;">Apply New Overs</button>
         </div>
       </div>
     </div>

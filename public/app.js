@@ -1148,6 +1148,166 @@ function handleConfirmToss() {
   tossContext = null;
 }
 
+// ----------------------------------------------------
+// MID-TOURNAMENT & MID-MATCH ADJUST OVERS ENGINE
+// ----------------------------------------------------
+
+window.openAdjustOversModal = function () {
+  if (appState.userRole !== 'admin') {
+    showToast('Only Tournament Owner / Admin can adjust match overs.');
+    return;
+  }
+
+  const match = appState.activeMatch;
+  const tour = appState.tournament;
+  const currentMatchOvers = match?.overs_limit || tour?.overs || 20;
+
+  const modal = document.querySelector('#adjustOversModal');
+  if (!modal) return;
+
+  const currentOversEl = document.querySelector('#adjustCurrentOversVal');
+  if (currentOversEl) currentOversEl.textContent = `${currentMatchOvers} Overs`;
+
+  const inn = match ? (match.current_innings === 1 ? match.innings1 : match.innings2) : null;
+  const currentBalls = inn ? inn.balls : 0;
+  const currentOversBowledStr = `${Math.floor(currentBalls / 6)}.${currentBalls % 6} ov (${currentBalls} balls)`;
+
+  const currentBallsEl = document.querySelector('#adjustCurrentBallsVal');
+  if (currentBallsEl) currentBallsEl.textContent = match ? currentOversBowledStr : 'No active match';
+
+  const minAllowedOvers = Math.max(1, Math.ceil(currentBalls / 6));
+  const oversInput = document.querySelector('#adjustOversInput');
+  if (oversInput) {
+    oversInput.min = minAllowedOvers;
+    oversInput.value = currentMatchOvers;
+  }
+
+  const minHintEl = document.querySelector('#adjustOversMinHint');
+  if (minHintEl) {
+    minHintEl.textContent = currentBalls > 0
+      ? `Must be at least ${minAllowedOvers} overs (already bowled ${currentOversBowledStr}).`
+      : 'Select any value between 1 and 50 overs.';
+  }
+
+  // Target adjustment calculation for 2nd innings
+  const targetSection = document.querySelector('#adjustTargetSection');
+  const targetInput = document.querySelector('#adjustTargetInput');
+  const propTargetVal = document.querySelector('#proportionalTargetVal');
+
+  if (match && match.current_innings === 2 && match.innings1) {
+    if (targetSection) targetSection.style.display = 'block';
+    const oldOvers = match.innings1.overs_limit || match.overs_limit || 20;
+    const calcPropTarget = (newOv) => Math.floor((match.innings1.runs * newOv) / (oldOvers || 20)) + 1;
+    const initialProp = calcPropTarget(currentMatchOvers);
+    if (propTargetVal) propTargetVal.textContent = `${initialProp} runs`;
+    if (targetInput) targetInput.value = match.target || initialProp;
+
+    if (oversInput) {
+      oversInput.oninput = () => {
+        const val = parseInt(oversInput.value, 10) || currentMatchOvers;
+        const pTrg = calcPropTarget(val);
+        if (propTargetVal) propTargetVal.textContent = `${pTrg} runs`;
+        if (targetInput) targetInput.value = pTrg;
+      };
+    }
+  } else {
+    if (targetSection) targetSection.style.display = 'none';
+  }
+
+  modal.classList.add('show');
+};
+
+window.closeAdjustOversModal = function () {
+  const modal = document.querySelector('#adjustOversModal');
+  if (modal) modal.classList.remove('show');
+};
+
+window.setAdjustOversQuick = function (num) {
+  const oversInput = document.querySelector('#adjustOversInput');
+  if (!oversInput) return;
+  const min = parseInt(oversInput.min, 10) || 1;
+  if (num < min) {
+    showToast(`Cannot reduce below ${min} overs (overs already bowled in this innings).`);
+    oversInput.value = min;
+  } else {
+    oversInput.value = num;
+  }
+  oversInput.dispatchEvent(new Event('input'));
+};
+
+window.saveAdjustOvers = function () {
+  const oversInput = document.querySelector('#adjustOversInput');
+  const newOvers = parseInt(oversInput?.value, 10);
+  const minAllowed = parseInt(oversInput?.min, 10) || 1;
+
+  if (isNaN(newOvers) || newOvers < 1 || newOvers > 50) {
+    showToast('Please enter a valid overs count between 1 and 50.');
+    return;
+  }
+
+  if (newOvers < minAllowed) {
+    showToast(`Overs cannot be reduced below ${minAllowed} overs because ${minAllowed - 1}+ overs have already been bowled.`);
+    return;
+  }
+
+  const scopeRadio = document.querySelector('input[name="adjustOversScope"]:checked');
+  const scope = scopeRadio ? scopeRadio.value : 'match';
+
+  const match = appState.activeMatch;
+  const tour = appState.tournament;
+
+  // 1. Update Current Match
+  if (match) {
+    const oldOvers = match.overs_limit;
+    match.overs_limit = newOvers;
+
+    // Handle 2nd Innings Target Adjustment
+    if (match.current_innings === 2) {
+      const targetInput = document.querySelector('#adjustTargetInput');
+      const customTarget = parseInt(targetInput?.value, 10);
+      if (!isNaN(customTarget) && customTarget > 0) {
+        match.target = customTarget;
+      } else if (match.innings1) {
+        match.target = Math.floor((match.innings1.runs * newOvers) / (oldOvers || 20)) + 1;
+      }
+    }
+
+    // Check if new overs limit causes current innings to complete immediately
+    checkMatchProgress();
+  }
+
+  // 2. If Scope is Tournament: update tournament default & remaining fixtures
+  if (scope === 'tournament' && tour) {
+    tour.overs = newOvers;
+    if (tour.fixtures) {
+      tour.fixtures.forEach((f) => {
+        if (f.status !== 'completed' && !f.is_completed) {
+          f.overs = newOvers;
+        }
+      });
+    }
+    saveTournamentToDirectory(tour);
+
+    // Sync to backend if ID exists
+    if (tour.id) {
+      apiFetch(`/api/tournaments/${tour.id}/overs`, 'POST', {
+        overs: newOvers,
+        owner: tour.owner || appState.adminName || 'Suraj'
+      });
+    }
+  }
+
+  saveToLocalStorage();
+  closeAdjustOversModal();
+  renderAllViews();
+
+  showToast(
+    scope === 'tournament'
+      ? `Tournament & Match overs updated to ${newOvers} overs per innings!`
+      : `Current match overs adjusted to ${newOvers} overs!`
+  );
+};
+
 function initMatchFromFixture(fixture) {
   const tour = appState.tournament;
   if (!tour || !tour.teams) return;
@@ -2433,11 +2593,21 @@ function renderScoreboardView() {
   const retStrikBtn = document.querySelector('#retireStrikerBtn');
   const retNonStrikBtn = document.querySelector('#retireNonStrikerBtn');
   const bowlInjBtn = document.querySelector('#bowlerInjuryBtn');
+  const adjOversBtn = document.querySelector('#openAdjustOversBtn');
+  const currentOversBtnTag = document.querySelector('#currentOversBtnTag');
+  if (currentOversBtnTag) {
+    currentOversBtnTag.textContent = match.overs_limit || 20;
+  }
+  const sideTourOversText = document.querySelector('#sidebarTournamentOversText');
+  if (sideTourOversText) {
+    sideTourOversText.textContent = `${appState.tournament?.overs || 20} Overs per Match`;
+  }
 
   if (match.is_match_completed) {
     if (scoringPanel) scoringPanel.style.display = 'none';
     if (openP11Btn) openP11Btn.style.display = 'none';
     if (openTossBtn) openTossBtn.style.display = 'none';
+    if (adjOversBtn) adjOversBtn.style.display = 'none';
     if (swInnBtn) swInnBtn.style.display = 'none';
     if (resetBtn) resetBtn.style.display = 'none';
     if (chgBowlBtn) chgBowlBtn.style.display = 'none';
@@ -2544,6 +2714,7 @@ function renderScoreboardView() {
       if (scoringPanel) scoringPanel.style.display = 'block';
       if (openP11Btn) openP11Btn.style.display = 'inline-flex';
       if (openTossBtn) openTossBtn.style.display = 'inline-flex';
+      if (adjOversBtn) adjOversBtn.style.display = 'inline-flex';
       if (swInnBtn) swInnBtn.style.display = 'inline-flex';
       if (resetBtn) resetBtn.style.display = 'inline-flex';
       if (chgBowlBtn) chgBowlBtn.style.display = 'inline-flex';
@@ -3666,6 +3837,26 @@ function setupEventListeners() {
 
   const cancelTossBtn = document.querySelector('#cancelTossModalBtn');
   if (cancelTossBtn) cancelTossBtn.onclick = () => closeTossModal();
+
+  // Adjust / Reduce Overs Modal Actions (Mid-Tournament / Mid-Match)
+  const openAdjustOversBtn = document.querySelector('#openAdjustOversBtn');
+  if (openAdjustOversBtn) {
+    openAdjustOversBtn.onclick = () => window.openAdjustOversModal();
+  }
+
+  const sidebarEditOversBtn = document.querySelector('#sidebarEditOversBtn');
+  if (sidebarEditOversBtn) {
+    sidebarEditOversBtn.onclick = () => window.openAdjustOversModal();
+  }
+
+  const closeAdjustOversBtn = document.querySelector('#closeAdjustOversBtn');
+  if (closeAdjustOversBtn) closeAdjustOversBtn.onclick = () => window.closeAdjustOversModal();
+
+  const cancelAdjustOversBtn = document.querySelector('#cancelAdjustOversBtn');
+  if (cancelAdjustOversBtn) cancelAdjustOversBtn.onclick = () => window.closeAdjustOversModal();
+
+  const saveAdjustOversBtn = document.querySelector('#saveAdjustOversBtn');
+  if (saveAdjustOversBtn) saveAdjustOversBtn.onclick = () => window.saveAdjustOvers();
 
   const confirmTossBtn = document.querySelector('#confirmTossBtn');
   if (confirmTossBtn) confirmTossBtn.onclick = () => handleConfirmToss();

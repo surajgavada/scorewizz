@@ -109,6 +109,17 @@ class ScoreWizzHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send_json(500, {'error': str(e)})
 
+        # API: Update tournament overs mid-tournament
+        if path.startswith('/api/tournaments/') and path.endswith('/overs'):
+            tournament_id = path.split('/')[-2]
+            try:
+                new_overs = int(payload.get('overs', 20))
+                owner = payload.get('owner')
+                database.update_tournament_overs(tournament_id, new_overs, owner)
+                return self.send_json(200, {'success': True, 'overs': new_overs})
+            except Exception as e:
+                return self.send_json(500, {'error': str(e)})
+
         self.send_json(404, {'error': 'Route not found'})
 
     def do_DELETE(self):

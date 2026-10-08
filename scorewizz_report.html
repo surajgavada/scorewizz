@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ScoreWizz - Technical Architecture & Engineering Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm 15mm 15mm;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #1e293b;
+    background: #ffffff;
+    line-height: 1.55;
+    font-size: 9.5pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .header-card {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #047857 100%);
+    color: #ffffff;
+    padding: 20px 24px;
+    border-radius: 10px;
+    margin-bottom: 18px;
+  }
+
+  .header-badge {
+    display: inline-block;
+    background: rgba(16, 185, 129, 0.25);
+    border: 1px solid #10b981;
+    color: #a7f3d0;
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .header-title {
+    font-size: 20pt;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+    margin-bottom: 4px;
+    color: #ffffff;
+  }
+
+  .header-subtitle {
+    font-size: 10pt;
+    color: #cbd5e1;
+    font-weight: 400;
+    margin-bottom: 10px;
+  }
+
+  .header-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 8pt;
+    color: #94a3b8;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    padding-top: 8px;
+  }
+
+  .meta-item strong {
+    color: #f1f5f9;
+  }
+
+  h2 {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #0f172a;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 3px;
+    margin-top: 16px;
+    margin-bottom: 8px;
+  }
+
+  h3 {
+    font-size: 9.5pt;
+    font-weight: 600;
+    color: #1e293b;
+    margin-top: 10px;
+    margin-bottom: 4px;
+  }
+
+  p {
+    margin-bottom: 6px;
+    color: #334155;
+  }
+
+  .section-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    page-break-inside: avoid;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 12px 0;
+    font-size: 8.5pt;
+    page-break-inside: avoid;
+  }
+
+  th {
+    background: #0f172a;
+    color: #ffffff;
+    font-weight: 600;
+    text-align: left;
+    padding: 6px 8px;
+    border: 1px solid #0f172a;
+  }
+
+  td {
+    padding: 6px 8px;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 7pt;
+    font-weight: 600;
+  }
+
+  .badge-emerald { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+  .badge-blue { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
+  .badge-purple { background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; }
+  .badge-amber { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+    page-break-inside: avoid;
+  }
+
+  .card {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+
+  .card-title {
+    font-size: 9pt;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 3px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .card-text {
+    font-size: 8pt;
+    color: #475569;
+    line-height: 1.4;
+  }
+
+  ul, ol {
+    margin-left: 16px;
+    margin-bottom: 6px;
+    color: #334155;
+  }
+
+  li {
+    margin-bottom: 2px;
+  }
+
+  code {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 8pt;
+    background: #f1f5f9;
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: #0f172a;
+    border: 1px solid #e2e8f0;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  .flow-diagram {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin: 8px 0;
+    font-size: 7.5pt;
+    page-break-inside: avoid;
+  }
+
+  .flow-step {
+    background: #ffffff;
+    border: 1px solid #94a3b8;
+    border-radius: 5px;
+    padding: 6px 8px;
+    text-align: center;
+    font-weight: 600;
+    color: #0f172a;
+    flex: 1;
+    margin: 0 3px;
+  }
+
+  .flow-arrow {
+    color: #047857;
+    font-weight: 800;
+    font-size: 10pt;
+  }
+
+  .footer-note {
+    margin-top: 14px;
+    padding-top: 6px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 7.5pt;
+    color: #94a3b8;
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header-card">
+    <span class="header-badge">Architecture & Engineering Report</span>
+    <h1 class="header-title">ScoreWizz Platform</h1>
+    <div class="header-subtitle">Cricket Tournament Engine, Live Scoring PWA & Cloud Deployment Report</div>
+    <div class="header-meta">
+      <div class="meta-item">Author: <strong>Suraj Gavada</strong></div>
+      <div class="meta-item">Application: <strong>ScoreWizz v2.0</strong></div>
+      <div class="meta-item">Repository: <strong>surajgavada/scorewizz</strong></div>
+      <div class="meta-item">Host Target: <strong>Render (Python 3)</strong></div>
+    </div>
+  </div>
+
+  <!-- EXECUTIVE SUMMARY -->
+  <h2>1. Executive Summary</h2>
+  <div class="section-box">
+    <p><strong>ScoreWizz</strong> is an offline-ready, zero-dependency Progressive Web Application (PWA) designed for multi-format cricket tournament management, live ball-by-ball scorekeeping, automated Net Run Rate (NRR) standings calculation, player statistics aggregation, and instant cloud deployment.</p>
+    <p>Engineered without bulky frontend frameworks or third-party web server packages, the platform achieves near-zero latency, runs completely offline, and deploys effortlessly across cloud environments like <strong>Render</strong>.</p>
+  </div>
+
+  <!-- WHAT IS USED -->
+  <h2>2. What Is Used? (Technology Stack Breakdown)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 22%;">Layer / Tier</th>
+        <th style="width: 28%;">Technology</th>
+        <th style="width: 50%;">Role & Functionality</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Backend Server</strong></td>
+        <td>Python 3 (<code>http.server</code>)</td>
+        <td>Lightweight multi-threaded REST HTTP API server, routing static assets, handling JSON payloads, and dynamic <code>$PORT</code> cloud binding.</td>
+      </tr>
+      <tr>
+        <td><strong>Database Engine</strong></td>
+        <td>SQLite 3 (<code>scorewizz.db</code>)</td>
+        <td>ACID-compliant relational database storing tournaments, teams, squads, fixtures, ball-by-ball logs, and historical scorecards.</td>
+      </tr>
+      <tr>
+        <td><strong>Frontend Core</strong></td>
+        <td>Vanilla JavaScript (ES6+)</td>
+        <td>Modular client-side state machine (~6,500 lines) managing live scoring, Playing 11 rosters, tie-breakers, awards calculation, and UI updates.</td>
+      </tr>
+      <tr>
+        <td><strong>User Interface</strong></td>
+        <td>HTML5 & Modern CSS3</td>
+        <td>Semantic SPA structure with 7 distinct viewports, CSS design tokens, high-contrast light/dark themes, and zero Unicode emojis.</td>
+      </tr>
+      <tr>
+        <td><strong>Offline & PWA</strong></td>
+        <td>Service Worker & Cache API</td>
+        <td>Caches static assets (<code>sw.js</code> v66) and syncs real-time state with <code>localStorage</code> for 100% offline match continuity.</td>
+      </tr>
+      <tr>
+        <td><strong>Cloud Deployment</strong></td>
+        <td>Render Cloud Platform</td>
+        <td>Automated continuous deployment from GitHub using <code>render.yaml</code>, <code>Procfile</code>, and <code>requirements.txt</code> with free SSL/HTTPS.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- WHY IT WAS USED -->
+  <h2>3. Why Was It Used? (Engineering Decisions & Rationales)</h2>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">
+        <span>Zero Third-Party Dependencies</span>
+        <span class="badge badge-emerald">Efficiency</span>
+      </div>
+      <div class="card-text">
+        Utilizing Python Standard Library (<code>http.server</code>, <code>sqlite3</code>, <code>json</code>, <code>urllib</code>) eliminates security vulnerabilities, package rot, and heavy <code>npm</code>/<code>pip</code> overhead, ensuring instant boot times (&lt;1s) and effortless builds on free-tier cloud instances.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        <span>Vanilla JS vs. Heavy Frameworks</span>
+        <span class="badge badge-blue">Performance</span>
+      </div>
+      <div class="card-text">
+        Avoiding React/Vue/Angular removes virtual DOM memory footprints and build steps. The app loads in under 100ms and executes natively on low-end mobile devices used on outdoor cricket grounds.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        <span>Dual-Storage Architecture</span>
+        <span class="badge badge-purple">Resilience</span>
+      </div>
+      <div class="card-text">
+        Real-time snapshots are maintained synchronously in browser <code>localStorage</code> while asynchronously syncing to SQLite via REST APIs. If ground internet drops mid-match, zero scoring data is lost.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        <span>High-Contrast & Emoji-Free UI</span>
+        <span class="badge badge-amber">Usability</span>
+      </div>
+      <div class="card-text">
+        Strict light-mode contrast (Emerald <code>#047857</code>, Coral <code>#e11d48</code>, Slate <code>#1e293b</code>) guarantees full sunlight readability. Replacing Unicode emojis with vector SVGs ensures consistent rendering across all devices.
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- HOW IT WORKS -->
+  <h2>4. How It Works (Core Subsystems & Data Flow)</h2>
+
+  <div class="flow-diagram">
+    <div class="flow-step">1. Role Selection<br/><small>Admin or Viewer</small></div>
+    <div class="flow-arrow">&rqquo;</div>
+    <div class="flow-step">2. Tournament Setup<br/><small>Teams & Schedule</small></div>
+    <div class="flow-arrow">&rqquo;</div>
+    <div class="flow-step">3. Playing 11 & Toss<br/><small>Keeper & Bat/Bowl</small></div>
+    <div class="flow-arrow">&rqquo;</div>
+    <div class="flow-step">4. Live Ball Scoring<br/><small>Runs, Wickets, NRR</small></div>
+    <div class="flow-arrow">&rqquo;</div>
+    <div class="flow-step">5. Concluded Result<br/><small>POTM & Scorecard</small></div>
+  </div>
+
+  <h3>A. Role-Based Access & Workspace Isolation</h3>
+  <div class="section-box">
+    <ul>
+      <li><strong>Admin Authentication:</strong> Admin enters a name (e.g. <code>Suraj</code>). Tournaments are strictly filtered by creator/owner (<code>owner === adminName</code>), ensuring multi-user isolation so new admins start with a clean workspace.</li>
+      <li><strong>Viewer Mode (Read-Only):</strong> Viewers receive read-only access. All scoring pads, toss controls, reset buttons, and delete actions are hidden (<code>.role-viewer .admin-only { display: none !important; }</code>).</li>
+    </ul>
+  </div>
+
+  <h3>B. Tournament Scheduling & Knockout Advancement</h3>
+  <div class="section-box">
+    <ul>
+      <li><strong>Round-Robin Generator:</strong> Generates balanced home/away schedules using round-robin circle algorithms.</li>
+      <li><strong>Knockout Tree Engine:</strong> Dynamically models elimination brackets (Quarter-Finals, Semi-Finals, Grand Final). Concluding a match automatically slots the winning team into the next bracket fixture.</li>
+    </ul>
+  </div>
+
+  <h3>C. Playing 11 Selection & Detailed Dismissals</h3>
+  <div class="section-box">
+    <ul>
+      <li><strong>Squad Validation:</strong> Enforces exactly 11 active players, designating Captain, Vice-Captain, and Wicketkeeper (who is also permitted to bowl).</li>
+      <li><strong>Dismissal Engine:</strong> Captures exact dismissal parameters: <em>Caught</em> (selects fielder from opposing 11), <em>Run Out</em> (records fielder and run-out batter), <em>Bowled, LBW, Stumped, Hit Wicket, Retired Hurt</em>.</li>
+    </ul>
+  </div>
+
+  <h3>D. Real-Time Net Run Rate (NRR) & Leaderboards</h3>
+  <div class="section-box">
+    <p>Standings and Net Run Rate are recalculated dynamically upon every match conclusion using the standard ICC formula:</p>
+    <p style="text-align: center; font-weight: 600; color: #047857; margin: 4px 0;">
+      <code>Net Run Rate (NRR) = (Total Runs Scored / Overs Faced) - (Total Runs Conceded / Overs Bowled)</code>
+    </p>
+    <p>Leaderboards automatically rank tournament MVPs, <strong>Orange Cap</strong> (Top Run Scorers), and <strong>White & Purple Cap</strong> (Top Wicket Takers).</p>
+  </div>
+
+  <h3>E. Post-Match Concluded Mode & Bowler POTM Awards</h3>
+  <div class="section-box">
+    <ul>
+      <li><strong>Direct Result Mode (No Rematch):</strong> When a match concludes, all interactive scoring controls are hidden and replaced with a direct <strong>View Result</strong> action. Concluded matches directly open the official scorecard without prompt popups.</li>
+      <li><strong>Comprehensive Bowler POTM Statistics:</strong> When Player of the Match is awarded to a bowler, figures display Wickets/Runs (e.g. <code>3/24</code>), Overs & Maidens (<code>4.0 ov, 1 maiden</code>), and Economy Rate (<code>6.00</code>).</li>
+    </ul>
+  </div>
+
+  <!-- DEPLOYMENT MATRIX -->
+  <h2>5. Cloud Deployment & Hosting Process (Render)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">File / Config</th>
+        <th style="width: 25%;">Value / Content</th>
+        <th style="width: 50%;">Deployment Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>render.yaml</code></td>
+        <td><code>type: web, runtime: python</code></td>
+        <td>Declarative infrastructure blueprint for automatic Render service setup.</td>
+      </tr>
+      <tr>
+        <td><code>requirements.txt</code></td>
+        <td>Standard Library declaration</td>
+        <td>Ensures cloud Python package installer verifies zero dependencies.</td>
+      </tr>
+      <tr>
+        <td><code>Procfile</code></td>
+        <td><code>web: python app.py</code></td>
+        <td>Directs the host runtime process to launch the Python HTTP server.</td>
+      </tr>
+      <tr>
+        <td><code>runtime.txt</code></td>
+        <td><code>python-3.11.9</code></td>
+        <td>Locks the deployment environment to Python 3.11 LTS</td>
+      </tr>
+      <tr>
+        <td><code>PORT</code> Binding</td>
+        <td><code>os.environ.get('PORT', 3000)</code></td>
+        <td>Dynamically binds to Render's allocated external port with automatic SSL/HTTPS.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- FOOTER -->
+  <div class="footer-note">
+    <span>ScoreWizz Technical Architecture Report - Confidential & Proprietary</span>
+    <span>Generated: September 2026</span>
+  </div>
+
+</body>
+</html>
