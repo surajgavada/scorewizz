@@ -643,18 +643,6 @@ def update_tournament_overs(tournament_id, overs, owner=None):
             cursor.execute("UPDATE tournaments SET overs = ? WHERE id = ?", (overs, tournament_id))
         conn.commit()
 
-def delete_tournament(tournament_id, owner=None):
-    """
-    Deletes a tournament and its cascaded squads and matches.
-    """
-    with get_db() as conn:
-        cursor = conn.cursor()
-        if owner:
-            cursor.execute("DELETE FROM tournaments WHERE id = ? AND lower(owner) = lower(?)", (tournament_id, owner))
-        else:
-            cursor.execute("DELETE FROM tournaments WHERE id = ?", (tournament_id,))
-        conn.commit()
-
 def update_points_table_after_match(tournament_id, match_data):
     """
     Updates the points table and player tournament statistics after a match is concluded.

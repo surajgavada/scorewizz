@@ -1,15 +1,17 @@
 {
   "name": "scorewizz",
-  "version": "1.0.0",
-  "description": "ScoreWizz Node.js application",
-  "main": "src/index.js",
+  "version": "2.0.0",
+  "description": "ScoreWizz - Offline-first Cricket Tournament & Live Scoring PWA",
   "scripts": {
     "start": "python app.py",
-    "start:node": "node src/index.js",
-    "dev": "python app.py",
-    "test": "node --test"
+    "dev": "python app.py"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "keywords": [
+    "cricket",
+    "tournament",
+    "scoring",
+    "pwa"
+  ],
+  "author": "Suraj",
+  "license": "MIT"
 }

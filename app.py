@@ -134,12 +134,8 @@ class ScoreWizzHandler(http.server.BaseHTTPRequestHandler):
         self.send_json(404, {'error': 'Route not found'})
 
     def serve_static_file(self, req_path):
-        if req_path in ['/', '/login']:
+        if req_path in ['/', '/login', '/admin', '/user']:
             clean_path = 'index.html'
-        elif req_path == '/admin':
-            clean_path = 'admin.html'
-        elif req_path == '/user':
-            clean_path = 'user.html'
         else:
             clean_path = req_path.lstrip('/')
         file_path = os.path.abspath(os.path.join(PUBLIC_DIR, clean_path))
