@@ -734,6 +734,391 @@ function generateKnockoutSchedule(teams, tournamentId) {
   return finalFixtures;
 }
 
+function generateGroupsKnockoutSchedule(teams, tournamentId, numGroups = 2, qualifiersPerGroup = 1) {
+  const gCount = Math.max(2, Math.min(4, Number(numGroups) || 2));
+  const qCount = Math.max(1, Math.min(2, Number(qualifiersPerGroup) || 1));
+
+  const groups = Array.from({ length: gCount }, () => []);
+  teams.forEach((t, idx) => {
+    const gIdx = idx % gCount;
+    const gLetter = String.fromCharCode(65 + gIdx);
+    t.group_name = `Group ${gLetter}`;
+    t.group = gLetter;
+    groups[gIdx].push(t);
+  });
+
+  const fixtures = [];
+  let matchCounter = 1;
+
+  // 1. Group Stage Fixtures (Single round-robin within each group)
+  groups.forEach((gTeams, gIdx) => {
+    const gLetter = String.fromCharCode(65 + gIdx);
+    const gName = `Group ${gLetter}`;
+    const m = gTeams.length;
+    if (m < 2) return;
+
+    let gMatchIdx = 1;
+    for (let i = 0; i < m - 1; i++) {
+      for (let j = i + 1; j < m; j++) {
+        const t1 = gTeams[i];
+        const t2 = gTeams[j];
+        const fixId = `fix_${tournamentId}_${matchCounter}`;
+        fixtures.push({
+          id: fixId,
+          tournament_id: tournamentId,
+          match_number: matchCounter,
+          team1_id: t1.id,
+          team1_name: t1.name,
+          team1_short: t1.short_name || t1.name.substring(0, 3).toUpperCase(),
+          team1_color: t1.color || '#ed6a4e',
+          team2_id: t2.id,
+          team2_name: t2.name,
+          team2_short: t2.short_name || t2.name.substring(0, 3).toUpperCase(),
+          team2_color: t2.color || '#3b82f6',
+          venue: `Stadium Pitch ${((matchCounter - 1) % 4) + 1}`,
+          match_date: `${gName} • Match ${gMatchIdx}`,
+          stage: gName,
+          group_name: gName,
+          status: 'upcoming',
+          winner_team_id: null,
+          result_text: null,
+          is_playoff: false
+        });
+        matchCounter++;
+        gMatchIdx++;
+      }
+    }
+  });
+
+  // 2. Playoff Stage Fixtures
+  const playoffMatches = [];
+  if (gCount === 2 && qCount === 1) {
+    const finalId = `fix_${tournamentId}_${matchCounter}`;
+    playoffMatches.push({
+      id: finalId,
+      tournament_id: tournamentId,
+      match_number: matchCounter,
+      team1_id: 'TBD_QUAL_A1',
+      team1_name: 'Winner Group A (1st)',
+      team1_short: 'A1',
+      team1_color: '#ed6a4e',
+      team2_id: 'TBD_QUAL_B1',
+      team2_name: 'Winner Group B (1st)',
+      team2_short: 'B1',
+      team2_color: '#3b82f6',
+      venue: 'Grand Arena Stadium',
+      match_date: 'Grand Final',
+      stage: 'Grand Final',
+      status: 'upcoming',
+      winner_team_id: null,
+      result_text: null,
+      is_playoff: true
+    });
+  } else if (gCount === 2 && qCount === 2) {
+    const sf1Id = `fix_${tournamentId}_${matchCounter}`;
+    const sf2Id = `fix_${tournamentId}_${matchCounter + 1}`;
+    const finalId = `fix_${tournamentId}_${matchCounter + 2}`;
+
+    playoffMatches.push({
+      id: sf1Id,
+      tournament_id: tournamentId,
+      match_number: matchCounter,
+      team1_id: 'TBD_QUAL_A1',
+      team1_name: 'Group A Winner (A1)',
+      team1_short: 'A1',
+      team1_color: '#ed6a4e',
+      team2_id: 'TBD_QUAL_B2',
+      team2_name: 'Group B Runner-Up (B2)',
+      team2_short: 'B2',
+      team2_color: '#3b82f6',
+      venue: 'Stadium Pitch 1 Arena',
+      match_date: 'Semi-Final 1',
+      stage: 'Semi-Final 1',
+      status: 'upcoming',
+      next_fixture_id: finalId,
+      next_slot: 1,
+      is_playoff: true
+    });
+    playoffMatches.push({
+      id: sf2Id,
+      tournament_id: tournamentId,
+      match_number: matchCounter + 1,
+      team1_id: 'TBD_QUAL_B1',
+      team1_name: 'Group B Winner (B1)',
+      team1_short: 'B1',
+      team1_color: '#10b981',
+      team2_id: 'TBD_QUAL_A2',
+      team2_name: 'Group A Runner-Up (A2)',
+      team2_short: 'A2',
+      team2_color: '#f59e0b',
+      venue: 'Stadium Pitch 2 Arena',
+      match_date: 'Semi-Final 2',
+      stage: 'Semi-Final 2',
+      status: 'upcoming',
+      next_fixture_id: finalId,
+      next_slot: 2,
+      is_playoff: true
+    });
+    playoffMatches.push({
+      id: finalId,
+      tournament_id: tournamentId,
+      match_number: matchCounter + 2,
+      team1_id: `TBD_M${matchCounter}`,
+      team1_name: 'Winner Semi-Final 1',
+      team1_short: 'TBD',
+      team1_color: '#64748b',
+      team2_id: `TBD_M${matchCounter + 1}`,
+      team2_name: 'Winner Semi-Final 2',
+      team2_short: 'TBD',
+      team2_color: '#64748b',
+      venue: 'Grand Arena Stadium',
+      match_date: 'Grand Final',
+      stage: 'Grand Final',
+      status: 'upcoming',
+      is_playoff: true
+    });
+  } else if (gCount === 3 && qCount === 1) {
+    const elimId = `fix_${tournamentId}_${matchCounter}`;
+    const finalId = `fix_${tournamentId}_${matchCounter + 1}`;
+
+    playoffMatches.push({
+      id: elimId,
+      tournament_id: tournamentId,
+      match_number: matchCounter,
+      team1_id: 'TBD_QUAL_B1',
+      team1_name: 'Winner Group B (B1)',
+      team1_short: 'B1',
+      team1_color: '#3b82f6',
+      team2_id: 'TBD_QUAL_C1',
+      team2_name: 'Winner Group C (C1)',
+      team2_short: 'C1',
+      team2_color: '#10b981',
+      venue: 'Stadium Pitch 1 Arena',
+      match_date: 'Playoff Eliminator',
+      stage: 'Eliminator',
+      status: 'upcoming',
+      next_fixture_id: finalId,
+      next_slot: 2,
+      is_playoff: true
+    });
+    playoffMatches.push({
+      id: finalId,
+      tournament_id: tournamentId,
+      match_number: matchCounter + 1,
+      team1_id: 'TBD_QUAL_A1',
+      team1_name: 'Winner Group A (A1)',
+      team1_short: 'A1',
+      team1_color: '#ed6a4e',
+      team2_id: `TBD_M${matchCounter}`,
+      team2_name: 'Winner Eliminator',
+      team2_short: 'TBD',
+      team2_color: '#64748b',
+      venue: 'Grand Arena Stadium',
+      match_date: 'Grand Final',
+      stage: 'Grand Final',
+      status: 'upcoming',
+      is_playoff: true
+    });
+  } else if (gCount === 3 && qCount === 2) {
+    const qf1Id = `fix_${tournamentId}_${matchCounter}`;
+    const qf2Id = `fix_${tournamentId}_${matchCounter + 1}`;
+    const sf1Id = `fix_${tournamentId}_${matchCounter + 2}`;
+    const sf2Id = `fix_${tournamentId}_${matchCounter + 3}`;
+    const finalId = `fix_${tournamentId}_${matchCounter + 4}`;
+
+    playoffMatches.push({
+      id: qf1Id, tournament_id: tournamentId, match_number: matchCounter,
+      team1_id: 'TBD_QUAL_C1', team1_name: 'Winner Group C (C1)', team1_short: 'C1', team1_color: '#10b981',
+      team2_id: 'TBD_QUAL_B2', team2_name: 'Group B Runner-Up (B2)', team2_short: 'B2', team2_color: '#3b82f6',
+      venue: 'Stadium Pitch 1', match_date: 'Quarter-Final 1', stage: 'Quarter-Final 1', status: 'upcoming',
+      next_fixture_id: sf1Id, next_slot: 2, is_playoff: true
+    });
+    playoffMatches.push({
+      id: qf2Id, tournament_id: tournamentId, match_number: matchCounter + 1,
+      team1_id: 'TBD_QUAL_A2', team1_name: 'Group A Runner-Up (A2)', team1_short: 'A2', team1_color: '#ed6a4e',
+      team2_id: 'TBD_QUAL_C2', team2_name: 'Group C Runner-Up (C2)', team2_short: 'C2', team2_color: '#10b981',
+      venue: 'Stadium Pitch 2', match_date: 'Quarter-Final 2', stage: 'Quarter-Final 2', status: 'upcoming',
+      next_fixture_id: sf2Id, next_slot: 2, is_playoff: true
+    });
+    playoffMatches.push({
+      id: sf1Id, tournament_id: tournamentId, match_number: matchCounter + 2,
+      team1_id: 'TBD_QUAL_A1', team1_name: 'Winner Group A (A1)', team1_short: 'A1', team1_color: '#ed6a4e',
+      team2_id: `TBD_M${matchCounter}`, team2_name: 'Winner QF1', team2_short: 'TBD', team2_color: '#64748b',
+      venue: 'Stadium Arena 1', match_date: 'Semi-Final 1', stage: 'Semi-Final 1', status: 'upcoming',
+      next_fixture_id: finalId, next_slot: 1, is_playoff: true
+    });
+    playoffMatches.push({
+      id: sf2Id, tournament_id: tournamentId, match_number: matchCounter + 3,
+      team1_id: 'TBD_QUAL_B1', team1_name: 'Winner Group B (B1)', team1_short: 'B1', team1_color: '#3b82f6',
+      team2_id: `TBD_M${matchCounter + 1}`, team2_name: 'Winner QF2', team2_short: 'TBD', team2_color: '#64748b',
+      venue: 'Stadium Arena 2', match_date: 'Semi-Final 2', stage: 'Semi-Final 2', status: 'upcoming',
+      next_fixture_id: finalId, next_slot: 2, is_playoff: true
+    });
+    playoffMatches.push({
+      id: finalId, tournament_id: tournamentId, match_number: matchCounter + 4,
+      team1_id: `TBD_M${matchCounter + 2}`, team1_name: 'Winner Semi-Final 1', team1_short: 'TBD', team1_color: '#64748b',
+      team2_id: `TBD_M${matchCounter + 3}`, team2_name: 'Winner Semi-Final 2', team2_short: 'TBD', team2_color: '#64748b',
+      venue: 'Grand Arena Stadium', match_date: 'Grand Final', stage: 'Grand Final', status: 'upcoming',
+      is_playoff: true
+    });
+  } else if (gCount === 4 && qCount === 1) {
+    const sf1Id = `fix_${tournamentId}_${matchCounter}`;
+    const sf2Id = `fix_${tournamentId}_${matchCounter + 1}`;
+    const finalId = `fix_${tournamentId}_${matchCounter + 2}`;
+
+    playoffMatches.push({
+      id: sf1Id, tournament_id: tournamentId, match_number: matchCounter,
+      team1_id: 'TBD_QUAL_A1', team1_name: 'Winner Group A (A1)', team1_short: 'A1', team1_color: '#ed6a4e',
+      team2_id: 'TBD_QUAL_B1', team2_name: 'Winner Group B (B1)', team2_short: 'B1', team2_color: '#3b82f6',
+      venue: 'Stadium Pitch 1 Arena', match_date: 'Semi-Final 1', stage: 'Semi-Final 1', status: 'upcoming',
+      next_fixture_id: finalId, next_slot: 1, is_playoff: true
+    });
+    playoffMatches.push({
+      id: sf2Id, tournament_id: tournamentId, match_number: matchCounter + 1,
+      team1_id: 'TBD_QUAL_C1', team1_name: 'Winner Group C (C1)', team1_short: 'C1', team1_color: '#10b981',
+      team2_id: 'TBD_QUAL_D1', team2_name: 'Winner Group D (D1)', team2_short: 'D1', team2_color: '#f59e0b',
+      venue: 'Stadium Pitch 2 Arena', match_date: 'Semi-Final 2', stage: 'Semi-Final 2', status: 'upcoming',
+      next_fixture_id: finalId, next_slot: 2, is_playoff: true
+    });
+    playoffMatches.push({
+      id: finalId, tournament_id: tournamentId, match_number: matchCounter + 2,
+      team1_id: `TBD_M${matchCounter}`, team1_name: 'Winner Semi-Final 1', team1_short: 'TBD', team1_color: '#64748b',
+      team2_id: `TBD_M${matchCounter + 1}`, team2_name: 'Winner Semi-Final 2', team2_short: 'TBD', team2_color: '#64748b',
+      venue: 'Grand Arena Stadium', match_date: 'Grand Final', stage: 'Grand Final', status: 'upcoming',
+      is_playoff: true
+    });
+  } else if (gCount === 4 && qCount === 2) {
+    const qf1Id = `fix_${tournamentId}_${matchCounter}`;
+    const qf2Id = `fix_${tournamentId}_${matchCounter + 1}`;
+    const qf3Id = `fix_${tournamentId}_${matchCounter + 2}`;
+    const qf4Id = `fix_${tournamentId}_${matchCounter + 3}`;
+    const sf1Id = `fix_${tournamentId}_${matchCounter + 4}`;
+    const sf2Id = `fix_${tournamentId}_${matchCounter + 5}`;
+    const finalId = `fix_${tournamentId}_${matchCounter + 6}`;
+
+    playoffMatches.push({
+      id: qf1Id, tournament_id: tournamentId, match_number: matchCounter,
+      team1_id: 'TBD_QUAL_A1', team1_name: 'Winner Group A (A1)', team1_short: 'A1', team1_color: '#ed6a4e',
+      team2_id: 'TBD_QUAL_B2', team2_name: 'Group B Runner-Up (B2)', team2_short: 'B2', team2_color: '#3b82f6',
+      venue: 'Ground Pitch 1', match_date: 'Quarter-Final 1', stage: 'Quarter-Final 1', status: 'upcoming',
+      next_fixture_id: sf1Id, next_slot: 1, is_playoff: true
+    });
+    playoffMatches.push({
+      id: qf2Id, tournament_id: tournamentId, match_number: matchCounter + 1,
+      team1_id: 'TBD_QUAL_C1', team1_name: 'Winner Group C (C1)', team1_short: 'C1', team1_color: '#10b981',
+      team2_id: 'TBD_QUAL_D2', team2_name: 'Group D Runner-Up (D2)', team2_short: 'D2', team2_color: '#f59e0b',
+      venue: 'Ground Pitch 2', match_date: 'Quarter-Final 2', stage: 'Quarter-Final 2', status: 'upcoming',
+      next_fixture_id: sf1Id, next_slot: 2, is_playoff: true
+    });
+    playoffMatches.push({
+      id: qf3Id, tournament_id: tournamentId, match_number: matchCounter + 2,
+      team1_id: 'TBD_QUAL_B1', team1_name: 'Winner Group B (B1)', team1_short: 'B1', team1_color: '#3b82f6',
+      team2_id: 'TBD_QUAL_A2', team2_name: 'Group A Runner-Up (A2)', team2_short: 'A2', team2_color: '#ed6a4e',
+      venue: 'Ground Pitch 3', match_date: 'Quarter-Final 3', stage: 'Quarter-Final 3', status: 'upcoming',
+      next_fixture_id: sf2Id, next_slot: 1, is_playoff: true
+    });
+    playoffMatches.push({
+      id: qf4Id, tournament_id: tournamentId, match_number: matchCounter + 3,
+      team1_id: 'TBD_QUAL_D1', team1_name: 'Winner Group D (D1)', team1_short: 'D1', team1_color: '#f59e0b',
+      team2_id: 'TBD_QUAL_C2', team2_name: 'Group C Runner-Up (C2)', team2_short: 'C2', team2_color: '#10b981',
+      venue: 'Ground Pitch 4', match_date: 'Quarter-Final 4', stage: 'Quarter-Final 4', status: 'upcoming',
+      next_fixture_id: sf2Id, next_slot: 2, is_playoff: true
+    });
+    playoffMatches.push({
+      id: sf1Id, tournament_id: tournamentId, match_number: matchCounter + 4,
+      team1_id: `TBD_M${matchCounter}`, team1_name: 'Winner QF1', team1_short: 'TBD', team1_color: '#64748b',
+      team2_id: `TBD_M${matchCounter + 1}`, team2_name: 'Winner QF2', team2_short: 'TBD', team2_color: '#64748b',
+      venue: 'Arena Pitch 1', match_date: 'Semi-Final 1', stage: 'Semi-Final 1', status: 'upcoming',
+      next_fixture_id: finalId, next_slot: 1, is_playoff: true
+    });
+    playoffMatches.push({
+      id: sf2Id, tournament_id: tournamentId, match_number: matchCounter + 5,
+      team1_id: `TBD_M${matchCounter + 2}`, team1_name: 'Winner QF3', team1_short: 'TBD', team1_color: '#64748b',
+      team2_id: `TBD_M${matchCounter + 3}`, team2_name: 'Winner QF4', team2_short: 'TBD', team2_color: '#64748b',
+      venue: 'Arena Pitch 2', match_date: 'Semi-Final 2', stage: 'Semi-Final 2', status: 'upcoming',
+      next_fixture_id: finalId, next_slot: 2, is_playoff: true
+    });
+    playoffMatches.push({
+      id: finalId, tournament_id: tournamentId, match_number: matchCounter + 6,
+      team1_id: `TBD_M${matchCounter + 4}`, team1_name: 'Winner Semi-Final 1', team1_short: 'TBD', team1_color: '#64748b',
+      team2_id: `TBD_M${matchCounter + 5}`, team2_name: 'Winner Semi-Final 2', team2_short: 'TBD', team2_color: '#64748b',
+      venue: 'Grand Arena Stadium', match_date: 'Grand Final', stage: 'Grand Final', status: 'upcoming',
+      is_playoff: true
+    });
+  }
+
+  fixtures.push(...playoffMatches);
+  return fixtures;
+}
+
+function checkAndResolveGroupQualifiers(tour) {
+  if (!tour || tour.schedule_mode !== 'groups' || !tour.fixtures) return;
+
+  const numGroups = Number(tour.num_groups) || 2;
+  const qualifiersPerGroup = Number(tour.qualifiers_per_group) || 1;
+
+  for (let gIdx = 0; gIdx < numGroups; gIdx++) {
+    const groupLetter = String.fromCharCode(65 + gIdx);
+    const groupName = `Group ${groupLetter}`;
+
+    // Get all matches for this group
+    const groupMatches = tour.fixtures.filter(
+      (f) => f.group_name === groupName || (f.stage && f.stage.trim() === groupName)
+    );
+
+    if (groupMatches.length === 0) continue;
+
+    const allDone = groupMatches.every(
+      (f) => (f.status || '').toLowerCase() === 'completed' || Boolean(f.is_completed)
+    );
+
+    if (!allDone) continue;
+
+    const groupRows = (tour.points_table || []).filter((r) => {
+      if (r.group_name) return r.group_name === groupName;
+      if (r.group) return r.group === groupLetter;
+      const t = tour.teams?.find((tm) => tm.id === r.team_id);
+      return t && (t.group_name === groupName || t.group === groupLetter);
+    });
+
+    groupRows.sort(
+      (a, b) =>
+        (b.points - a.points) ||
+        (b.net_run_rate - a.net_run_rate) ||
+        (b.won - a.won) ||
+        (a.team_name || '').localeCompare(b.team_name || '')
+    );
+
+    for (let rank = 1; rank <= qualifiersPerGroup; rank++) {
+      const qRow = groupRows[rank - 1];
+      if (!qRow) continue;
+      const targetTeam = tour.teams?.find((t) => t.id === qRow.team_id) || {
+        id: qRow.team_id,
+        name: qRow.team_name,
+        short_name: qRow.short_name || (qRow.team_name ? qRow.team_name.substring(0, 3).toUpperCase() : 'TBD'),
+        color: qRow.color || '#ed6a4e'
+      };
+
+      const placeholderId = `TBD_QUAL_${groupLetter}${rank}`;
+
+      tour.fixtures.forEach((fix) => {
+        if (fix.team1_id === placeholderId) {
+          fix.team1_id = targetTeam.id;
+          fix.team1_name = targetTeam.name;
+          fix.team1_short = targetTeam.short_name || targetTeam.name.substring(0, 3).toUpperCase();
+          fix.team1_color = targetTeam.color || '#ed6a4e';
+        }
+        if (fix.team2_id === placeholderId) {
+          fix.team2_id = targetTeam.id;
+          fix.team2_name = targetTeam.name;
+          fix.team2_short = targetTeam.short_name || targetTeam.name.substring(0, 3).toUpperCase();
+          fix.team2_color = targetTeam.color || '#3b82f6';
+        }
+      });
+    }
+  }
+}
+
 // ----------------------------------------------------
 // PRE-MATCH PLAYING 11 ENGINE
 // ----------------------------------------------------
@@ -1521,6 +1906,8 @@ window.handleConfirmWalkover = function () {
           }
         }
       }
+
+      checkAndResolveGroupQualifiers(tour);
     }
     saveTournamentToDirectory(tour);
   }
@@ -2586,6 +2973,8 @@ function updateTournamentStandingsAndStats(match) {
         }
       }
     }
+
+    checkAndResolveGroupQualifiers(tour);
   }
 
   saveTournamentToDirectory(tour);
@@ -2597,6 +2986,9 @@ function updateTournamentStandingsAndStats(match) {
 // ----------------------------------------------------
 
 function renderAllViews() {
+  if (appState.tournament) {
+    checkAndResolveGroupQualifiers(appState.tournament);
+  }
   renderScoreboardView();
   renderScorecardView();
   renderPointsTableView();
@@ -3105,6 +3497,83 @@ function renderPointsTableView() {
     return;
   }
 
+  if (tour.schedule_mode === 'groups') {
+    const numGroups = Number(tour.num_groups) || 2;
+    const qualifiersPerGroup = Number(tour.qualifiers_per_group) || 1;
+    if (ptHead) ptHead.textContent = `${tour.name} - Group Stage Standings`;
+
+    const bannerTr = document.createElement('tr');
+    bannerTr.innerHTML = `
+      <td colspan="9" style="background: rgba(237, 106, 78, 0.08); border-bottom: 1px solid var(--line); padding: 10px 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <div style="font-size: 13px; color: var(--ink);">
+            <strong>World Cup Format:</strong> Top ${qualifiersPerGroup} ${qualifiersPerGroup === 1 ? 'team' : 'teams'} from each group advance to the Playoff Knockout Bracket.
+          </div>
+          <button class="btn btn-xs btn-outline" onclick="switchView('fixtures'); const bBtn = document.querySelector('#fixturesBracketToggleBtn'); if (bBtn) bBtn.click();">
+            View Playoff Bracket &rarr;
+          </button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(bannerTr);
+
+    for (let gIdx = 0; gIdx < numGroups; gIdx++) {
+      const gLetter = String.fromCharCode(65 + gIdx);
+      const gName = `Group ${gLetter}`;
+
+      const groupRows = tour.points_table.filter((r) => {
+        if (r.group_name) return r.group_name === gName;
+        if (r.group) return r.group === gLetter;
+        const t = tour.teams?.find((tm) => tm.id === r.team_id);
+        return t && (t.group_name === gName || t.group === gLetter);
+      });
+
+      groupRows.sort((a, b) => (b.points - a.points) || (b.net_run_rate - a.net_run_rate) || (b.won - a.won) || (a.team_name || '').localeCompare(b.team_name || ''));
+
+      const groupMatches = (tour.fixtures || []).filter((f) => f.group_name === gName || (f.stage && f.stage.trim() === gName));
+      const allDone = groupMatches.length > 0 && groupMatches.every((f) => (f.status || '').toLowerCase() === 'completed' || Boolean(f.is_completed));
+
+      const headerTr = document.createElement('tr');
+      headerTr.innerHTML = `
+        <td colspan="9" style="background: rgba(255, 255, 255, 0.05); padding: 8px 14px; border-top: 2px solid var(--line);">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-weight: 800; color: var(--gold); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">${gName}</span>
+            <span class="badge" style="font-size: 10px; ${allDone ? 'background: rgba(16, 185, 129, 0.2); color: var(--emerald);' : ''}">
+              ${allDone ? 'Group Matches Completed' : `Top ${qualifiersPerGroup} Advance`}
+            </span>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(headerTr);
+
+      groupRows.forEach((row, idx) => {
+        const tr = document.createElement('tr');
+        const formHtml = (row.form || []).map((f) => `<span class="form-pill form-${f.toLowerCase()}">${f}</span>`).join('');
+        const isQualified = idx < qualifiersPerGroup;
+        const rankBadge = isQualified ? `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: var(--emerald); font-size: 9px; margin-left: 4px; padding: 1px 4px; border-radius: 3px;" title="Qualifying Position">Q</span>` : '';
+
+        tr.innerHTML = `
+          <td><strong>${idx + 1}</strong>${rankBadge}</td>
+          <td>
+            <div class="team-cell">
+              <span class="team-icon-sm" style="background: ${row.color || '#ed6a4e'}">${row.short_name || row.team_name.substring(0, 3).toUpperCase()}</span>
+              <strong>${row.team_name}</strong>
+            </div>
+          </td>
+          <td class="text-center">${row.played}</td>
+          <td class="text-center"><strong>${row.won}</strong></td>
+          <td class="text-center">${row.lost}</td>
+          <td class="text-center">${row.tied}</td>
+          <td class="text-center font-display" style="color: var(--gold); font-size: 16px;"><strong>${row.points}</strong></td>
+          <td class="text-right font-display">${row.net_run_rate >= 0 ? '+' : ''}${row.net_run_rate.toFixed(3)}</td>
+          <td>${formHtml || '<span class="muted">-</span>'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+    return;
+  }
+
   tour.points_table.forEach((row, idx) => {
     const tr = document.createElement('tr');
     const formHtml = (row.form || []).map((f) => `<span class="form-pill form-${f.toLowerCase()}">${f}</span>`).join('');
@@ -3149,7 +3618,7 @@ function renderFixturesView() {
   }
 
   if (toggleGroup) {
-    toggleGroup.style.display = tour.schedule_mode === 'knockout' ? 'inline-flex' : 'none';
+    toggleGroup.style.display = (tour.schedule_mode === 'knockout' || tour.schedule_mode === 'groups') ? 'inline-flex' : 'none';
   }
 
   if (grid) {
@@ -3214,8 +3683,11 @@ function renderFixturesView() {
     });
   }
 
-  if (bracketContainer && tour.schedule_mode === 'knockout') {
-    renderKnockoutBracketTree('#knockoutBracketContainer', tour.fixtures, tour.teams);
+  if (bracketContainer && (tour.schedule_mode === 'knockout' || tour.schedule_mode === 'groups')) {
+    const playoffFixtures = tour.schedule_mode === 'groups'
+      ? tour.fixtures.filter((f) => f.is_playoff || (f.stage && !f.stage.toLowerCase().startsWith('group')))
+      : tour.fixtures;
+    renderKnockoutBracketTree('#knockoutBracketContainer', playoffFixtures, tour.teams);
   }
 }
 
@@ -3233,6 +3705,8 @@ function renderKnockoutBracketTree(containerSelector, fixtures, teams) {
       stageCategory = 'Semi-Finals';
     } else if (s.includes('quarter')) {
       stageCategory = 'Quarter-Finals';
+    } else if (s.includes('eliminator')) {
+      stageCategory = 'Eliminators';
     } else if (s.includes('16')) {
       stageCategory = 'Round of 16';
     } else if (s.includes('32')) {
@@ -3305,6 +3779,11 @@ window.startMatchFromSchedule = function (fixtureId) {
   if (!fix) return;
 
   const isCompleted = (fix.status || '').toLowerCase() === 'completed' || Boolean(fix.is_completed);
+
+  if (String(fix.team1_id).startsWith('TBD_QUAL_') || String(fix.team2_id).startsWith('TBD_QUAL_')) {
+    showToast('Playoff teams are determined by group standings. Complete all group stage matches first!');
+    return;
+  }
 
   if (String(fix.team1_id).startsWith('TBD') || String(fix.team2_id).startsWith('TBD')) {
     showToast('Teams for this match are not decided yet. Complete earlier round matches first!');
@@ -4346,11 +4825,24 @@ function setupEventListeners() {
       const val = e.target.value;
       const manArea = document.querySelector('#wizManualScheduleArea');
       const autoConfig = document.querySelector('#wizAutoRoundsConfig');
+      const groupsConfig = document.querySelector('#wizGroupsConfig');
       if (manArea) manArea.style.display = val === 'manual' ? 'block' : 'none';
       if (autoConfig) autoConfig.style.display = val === 'auto' ? 'block' : 'none';
+      if (groupsConfig) groupsConfig.style.display = val === 'groups' ? 'block' : 'none';
       if (val === 'manual') renderWizardManualMatchesList();
+      if (val === 'groups') updateWizardGroupsPreview();
     };
   });
+
+  const wizNumGroupsSelect = document.querySelector('#wizNumGroups');
+  if (wizNumGroupsSelect) {
+    wizNumGroupsSelect.onchange = () => updateWizardGroupsPreview();
+  }
+
+  const wizQualifiersSelect = document.querySelector('#wizQualifiersPerGroup');
+  if (wizQualifiersSelect) {
+    wizQualifiersSelect.onchange = () => updateWizardGroupsPreview();
+  }
 
   const addManBtn = document.querySelector('#wizAddManualMatchBtn');
   if (addManBtn) addManBtn.onclick = () => addWizardManualMatch();
@@ -4557,6 +5049,25 @@ function setupEventListeners() {
       if (isHidden) {
         const previewFixtures = generateKnockoutSchedule(appState.wizardData.teams, 'tour_preview');
         renderKnockoutBracketTree('#wizKnockoutGraphPreview', previewFixtures, appState.wizardData.teams);
+      }
+    };
+  }
+
+  const wizGroupsGraphToggle = document.querySelector('#wizToggleGroupsGraphBtn');
+  const wizGroupsGraphPreview = document.querySelector('#wizGroupsGraphPreview');
+  if (wizGroupsGraphToggle && wizGroupsGraphPreview) {
+    wizGroupsGraphToggle.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const isHidden = wizGroupsGraphPreview.style.display === 'none';
+      wizGroupsGraphPreview.style.display = isHidden ? 'block' : 'none';
+      wizGroupsGraphToggle.textContent = isHidden ? 'Hide Playoff Bracket' : 'View Playoff Bracket';
+      if (isHidden) {
+        const numGroups = Number(document.querySelector('#wizNumGroups')?.value) || 2;
+        const qCount = Number(document.querySelector('#wizQualifiersPerGroup')?.value) || 1;
+        const previewFixtures = generateGroupsKnockoutSchedule(appState.wizardData.teams, 'tour_preview', numGroups, qCount);
+        const playoffOnly = previewFixtures.filter((f) => f.is_playoff);
+        renderKnockoutBracketTree('#wizGroupsGraphPreview', playoffOnly, appState.wizardData.teams);
       }
     };
   }
@@ -5125,7 +5636,102 @@ function buildWizardScheduleStep() {
     renderKnockoutBracketTree('#wizKnockoutGraphPreview', previewFixtures, appState.wizardData.teams);
   }
 
+  // Dynamic Group Options based on team count
+  const wizNumGroupsSelect = document.querySelector('#wizNumGroups');
+  if (wizNumGroupsSelect) {
+    const n = (appState.wizardData.teams || []).length;
+    const currentVal = wizNumGroupsSelect.value;
+    let maxGroups = 2;
+    if (n >= 8) maxGroups = 4;
+    else if (n >= 6) maxGroups = 3;
+    else maxGroups = 2;
+
+    let optsHtml = '<option value="2">2 Groups (Group A & Group B)</option>';
+    if (maxGroups >= 3) optsHtml += '<option value="3">3 Groups (Group A, B, C)</option>';
+    if (maxGroups >= 4) optsHtml += '<option value="4">4 Groups (Group A, B, C, D)</option>';
+    wizNumGroupsSelect.innerHTML = optsHtml;
+    if (Number(currentVal) <= maxGroups) {
+      wizNumGroupsSelect.value = currentVal;
+    } else {
+      wizNumGroupsSelect.value = '2';
+    }
+  }
+
+  updateWizardGroupsPreview();
   renderWizardManualMatchesList();
+}
+
+function updateWizardGroupsPreview() {
+  const previewArea = document.querySelector('#wizGroupsPreviewArea');
+  const noteEl = document.querySelector('#wizGroupsCalculatedNote');
+  const numGroupsSelect = document.querySelector('#wizNumGroups');
+  const qualifiersSelect = document.querySelector('#wizQualifiersPerGroup');
+  if (!previewArea || !numGroupsSelect) return;
+
+  const numGroups = Number(numGroupsSelect.value) || 2;
+  const qualifiersPerGroup = Number(qualifiersSelect?.value) || 1;
+  const teams = appState.wizardData.teams || [];
+
+  const groups = Array.from({ length: numGroups }, (_, i) => ({
+    name: `Group ${String.fromCharCode(65 + i)}`,
+    letter: String.fromCharCode(65 + i),
+    teams: []
+  }));
+
+  teams.forEach((t, i) => {
+    groups[i % numGroups].teams.push(t);
+  });
+
+  let groupMatchesCount = 0;
+  groups.forEach((g) => {
+    const m = g.teams.length;
+    if (m >= 2) groupMatchesCount += (m * (m - 1)) / 2;
+  });
+
+  let playoffMatchesCount = 1;
+  if (numGroups === 2 && qualifiersPerGroup === 1) playoffMatchesCount = 1;
+  else if (numGroups === 2 && qualifiersPerGroup === 2) playoffMatchesCount = 3;
+  else if (numGroups === 3 && qualifiersPerGroup === 1) playoffMatchesCount = 2;
+  else if (numGroups === 3 && qualifiersPerGroup === 2) playoffMatchesCount = 5;
+  else if (numGroups === 4 && qualifiersPerGroup === 1) playoffMatchesCount = 3;
+  else if (numGroups === 4 && qualifiersPerGroup === 2) playoffMatchesCount = 7;
+
+  if (noteEl) {
+    noteEl.innerHTML = `<strong>${groupMatchesCount + playoffMatchesCount} total matches</strong> (${groupMatchesCount} group round-robin + ${playoffMatchesCount} playoff knockouts)`;
+  }
+
+  let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">`;
+  groups.forEach((g) => {
+    html += `
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; border-bottom: 1px solid var(--line); padding-bottom: 4px;">
+          <strong style="font-size: 13px; color: var(--gold);">${g.name}</strong>
+          <span class="badge" style="font-size: 10px;">${g.teams.length} ${g.teams.length === 1 ? 'team' : 'teams'}</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+    `;
+    g.teams.forEach((t) => {
+      html += `
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink);">
+          <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${t.color || '#ed6a4e'}; flex-shrink: 0;"></span>
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${t.name}</span>
+        </div>
+      `;
+    });
+    html += `
+        </div>
+      </div>
+    `;
+  });
+  html += `</div>`;
+  previewArea.innerHTML = html;
+
+  const graphPreview = document.querySelector('#wizGroupsGraphPreview');
+  if (graphPreview && graphPreview.style.display !== 'none') {
+    const previewFixtures = generateGroupsKnockoutSchedule(teams, 'tour_preview', numGroups, qualifiersPerGroup);
+    const playoffOnly = previewFixtures.filter((f) => f.is_playoff);
+    renderKnockoutBracketTree('#wizGroupsGraphPreview', playoffOnly, teams);
+  }
 }
 
 function renderWizardManualMatchesList() {
@@ -5241,9 +5847,18 @@ async function handleWizardLaunch() {
 
   const scheduleType = document.querySelector('input[name="scheduleType"]:checked')?.value || 'auto';
   const roundsCount = Number(document.querySelector('#wizTournamentRounds')?.value) || 1;
+  const numGroups = Number(document.querySelector('#wizNumGroups')?.value) || 2;
+  const qualifiersPerGroup = Number(document.querySelector('#wizQualifiersPerGroup')?.value) || 1;
   let fixtures = [];
 
-  if (scheduleType === 'knockout') {
+  if (scheduleType === 'groups') {
+    teams.forEach((t, i) => {
+      const gLetter = String.fromCharCode(65 + (i % numGroups));
+      t.group = gLetter;
+      t.group_name = `Group ${gLetter}`;
+    });
+    fixtures = generateGroupsKnockoutSchedule(teams, tId, numGroups, qualifiersPerGroup);
+  } else if (scheduleType === 'knockout') {
     fixtures = generateKnockoutSchedule(teams, tId);
   } else if (scheduleType === 'manual' && appState.wizardData.manualFixtures && appState.wizardData.manualFixtures.length > 0) {
     fixtures = appState.wizardData.manualFixtures.map((fix, idx) => {
@@ -5278,6 +5893,8 @@ async function handleWizardLaunch() {
     team_name: team.name,
     short_name: team.short_name,
     color: team.color,
+    group_name: team.group_name || null,
+    group: team.group || null,
     played: 0,
     won: 0,
     lost: 0,
@@ -5296,9 +5913,11 @@ async function handleWizardLaunch() {
     id: tId,
     name: appState.wizardData.name || 'Premier Cricket Championship',
     overs: appState.wizardData.overs || 20,
-    format: scheduleType === 'knockout' ? 'Knockout Cup' : 'T20 League',
+    format: scheduleType === 'knockout' ? 'Knockout Cup' : (scheduleType === 'groups' ? 'World Cup Group Stage & Playoffs' : 'T20 League'),
     schedule_mode: scheduleType,
     rounds_count: roundsCount,
+    num_groups: numGroups,
+    qualifiers_per_group: qualifiersPerGroup,
     owner: appState.adminName || 'Suraj',
     teams,
     fixtures,
@@ -6753,13 +7372,19 @@ function getTournamentStatus(tour) {
 
 function getTournamentChampion(tour) {
   if (!tour) return null;
-  if (tour.schedule_mode === 'knockout') {
+  if (tour.schedule_mode === 'knockout' || tour.schedule_mode === 'groups') {
     const fixtures = tour.fixtures || [];
-    const finalMatch = fixtures.slice().reverse().find((f) => (f.status === 'completed' || f.is_completed) && f.winner_team_id);
+    const finalMatch = fixtures.slice().reverse().find((f) => {
+      const s = (f.stage || '').toLowerCase();
+      const isFinalStage = s.includes('final') && !s.includes('semi') && !s.includes('quarter');
+      const isDone = (f.status === 'completed' || f.is_completed) && f.winner_team_id;
+      return (tour.schedule_mode === 'groups' ? isFinalStage : true) && isDone;
+    });
     if (finalMatch) {
       const winTeam = tour.teams?.find((t) => t.id === finalMatch.winner_team_id);
       if (winTeam) return winTeam.name;
     }
+    if (tour.schedule_mode === 'knockout') return null;
   }
   // Points table leader
   if (tour.points_table && tour.points_table.length > 0) {

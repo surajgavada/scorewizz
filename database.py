@@ -149,6 +149,26 @@ def init_db():
             cursor.execute("ALTER TABLE tournaments ADD COLUMN owner TEXT DEFAULT 'Suraj'")
         except Exception:
             pass
+        try:
+            cursor.execute("ALTER TABLE tournaments ADD COLUMN schedule_mode TEXT DEFAULT 'auto'")
+        except Exception:
+            pass
+        try:
+            cursor.execute("ALTER TABLE tournaments ADD COLUMN num_groups INTEGER DEFAULT 2")
+        except Exception:
+            pass
+        try:
+            cursor.execute("ALTER TABLE tournaments ADD COLUMN qualifiers_per_group INTEGER DEFAULT 1")
+        except Exception:
+            pass
+        try:
+            cursor.execute("ALTER TABLE teams ADD COLUMN group_name TEXT")
+        except Exception:
+            pass
+        try:
+            cursor.execute("ALTER TABLE fixtures ADD COLUMN group_name TEXT")
+        except Exception:
+            pass
             
         conn.commit()
 
@@ -372,9 +392,331 @@ def generate_knockout_schedule(teams, tournament_id):
                 
     return final_fixtures
 
+def generate_groups_schedule(teams, tournament_id, num_groups=2, qualifiers_per_group=1):
+    """
+    Generates World Cup style tournament schedule:
+    1. Single round-robin matches within each group.
+    2. Knockout playoff matches (Final, or Semi-Finals + Final, or QFs + SFs + Final) between group qualifiers.
+    """
+    num_groups = max(2, min(4, int(num_groups)))
+    qualifiers_per_group = max(1, min(2, int(qualifiers_per_group)))
+    
+    groups = [[] for _ in range(num_groups)]
+    for idx, t in enumerate(teams):
+        g_idx = idx % num_groups
+        g_letter = chr(65 + g_idx)
+        t['group_name'] = f"Group {g_letter}"
+        t['group'] = g_letter
+        groups[g_idx].append(t)
+        
+    fixtures = []
+    match_counter = 1
+    
+    # 1. Group Stage Fixtures
+    for g_idx, g_teams in enumerate(groups):
+        g_letter = chr(65 + g_idx)
+        g_name = f"Group {g_letter}"
+        m = len(g_teams)
+        if m < 2:
+            continue
+        g_match_idx = 1
+        for i in range(m - 1):
+            for j in range(i + 1, m):
+                t1 = g_teams[i]
+                t2 = g_teams[j]
+                fix_id = f"fix_{tournament_id}_{match_counter}"
+                fixtures.append({
+                    'id': fix_id,
+                    'tournament_id': tournament_id,
+                    'match_number': match_counter,
+                    'team1_id': t1['id'],
+                    'team1_name': t1['name'],
+                    'team1_short': t1.get('short_name', t1['name'][:3].upper()),
+                    'team1_color': t1.get('color', '#ed6a4e'),
+                    'team2_id': t2['id'],
+                    'team2_name': t2['name'],
+                    'team2_short': t2.get('short_name', t2['name'][:3].upper()),
+                    'team2_color': t2.get('color', '#3b82f6'),
+                    'venue': f"Stadium Pitch {((match_counter - 1) % 4) + 1}",
+                    'match_date': f"{g_name} - Match {g_match_idx}",
+                    'stage': g_name,
+                    'group_name': g_name,
+                    'status': 'upcoming',
+                    'winner_team_id': None,
+                    'result_text': None,
+                    'is_playoff': False
+                })
+                match_counter += 1
+                g_match_idx += 1
+                
+    # 2. Playoff Stage Fixtures
+    playoff_matches = []
+    if num_groups == 2 and qualifiers_per_group == 1:
+        # Grand Final
+        final_id = f"fix_{tournament_id}_{match_counter}"
+        playoff_matches.append({
+            'id': final_id,
+            'tournament_id': tournament_id,
+            'match_number': match_counter,
+            'team1_id': 'TBD_QUAL_A1',
+            'team1_name': 'Winner Group A (1st)',
+            'team1_short': 'A1',
+            'team1_color': '#ed6a4e',
+            'team2_id': 'TBD_QUAL_B1',
+            'team2_name': 'Winner Group B (1st)',
+            'team2_short': 'B1',
+            'team2_color': '#3b82f6',
+            'venue': 'Grand Arena Stadium',
+            'match_date': 'Grand Final',
+            'stage': 'Grand Final',
+            'status': 'upcoming',
+            'winner_team_id': None,
+            'result_text': None,
+            'is_playoff': True
+        })
+    elif num_groups == 2 and qualifiers_per_group == 2:
+        # SF1, SF2, Grand Final
+        sf1_id = f"fix_{tournament_id}_{match_counter}"
+        sf2_id = f"fix_{tournament_id}_{match_counter + 1}"
+        final_id = f"fix_{tournament_id}_{match_counter + 2}"
+        
+        playoff_matches.append({
+            'id': sf1_id,
+            'tournament_id': tournament_id,
+            'match_number': match_counter,
+            'team1_id': 'TBD_QUAL_A1',
+            'team1_name': 'Group A Winner (A1)',
+            'team1_short': 'A1',
+            'team1_color': '#ed6a4e',
+            'team2_id': 'TBD_QUAL_B2',
+            'team2_name': 'Group B Runner-Up (B2)',
+            'team2_short': 'B2',
+            'team2_color': '#3b82f6',
+            'venue': 'Stadium Pitch 1 Arena',
+            'match_date': 'Semi-Final 1',
+            'stage': 'Semi-Final 1',
+            'status': 'upcoming',
+            'next_fixture_id': final_id,
+            'next_slot': 1,
+            'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': sf2_id,
+            'tournament_id': tournament_id,
+            'match_number': match_counter + 1,
+            'team1_id': 'TBD_QUAL_B1',
+            'team1_name': 'Group B Winner (B1)',
+            'team1_short': 'B1',
+            'team1_color': '#10b981',
+            'team2_id': 'TBD_QUAL_A2',
+            'team2_name': 'Group A Runner-Up (A2)',
+            'team2_short': 'A2',
+            'team2_color': '#f59e0b',
+            'venue': 'Stadium Pitch 2 Arena',
+            'match_date': 'Semi-Final 2',
+            'stage': 'Semi-Final 2',
+            'status': 'upcoming',
+            'next_fixture_id': final_id,
+            'next_slot': 2,
+            'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': final_id,
+            'tournament_id': tournament_id,
+            'match_number': match_counter + 2,
+            'team1_id': f"TBD_M{match_counter}",
+            'team1_name': 'Winner Semi-Final 1',
+            'team1_short': 'TBD',
+            'team1_color': '#64748b',
+            'team2_id': f"TBD_M{match_counter + 1}",
+            'team2_name': 'Winner Semi-Final 2',
+            'team2_short': 'TBD',
+            'team2_color': '#64748b',
+            'venue': 'Grand Arena Stadium',
+            'match_date': 'Grand Final',
+            'stage': 'Grand Final',
+            'status': 'upcoming',
+            'is_playoff': True
+        })
+    elif num_groups == 3 and qualifiers_per_group == 1:
+        # Eliminator (B1 vs C1), Grand Final (A1 vs Winner Eliminator)
+        elim_id = f"fix_{tournament_id}_{match_counter}"
+        final_id = f"fix_{tournament_id}_{match_counter + 1}"
+        
+        playoff_matches.append({
+            'id': elim_id,
+            'tournament_id': tournament_id,
+            'match_number': match_counter,
+            'team1_id': 'TBD_QUAL_B1',
+            'team1_name': 'Winner Group B (B1)',
+            'team1_short': 'B1',
+            'team1_color': '#3b82f6',
+            'team2_id': 'TBD_QUAL_C1',
+            'team2_name': 'Winner Group C (C1)',
+            'team2_short': 'C1',
+            'team2_color': '#10b981',
+            'venue': 'Stadium Pitch 1 Arena',
+            'match_date': 'Playoff Eliminator',
+            'stage': 'Eliminator',
+            'status': 'upcoming',
+            'next_fixture_id': final_id,
+            'next_slot': 2,
+            'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': final_id,
+            'tournament_id': tournament_id,
+            'match_number': match_counter + 1,
+            'team1_id': 'TBD_QUAL_A1',
+            'team1_name': 'Winner Group A (A1)',
+            'team1_short': 'A1',
+            'team1_color': '#ed6a4e',
+            'team2_id': f"TBD_M{match_counter}",
+            'team2_name': 'Winner Eliminator',
+            'team2_short': 'TBD',
+            'team2_color': '#64748b',
+            'venue': 'Grand Arena Stadium',
+            'match_date': 'Grand Final',
+            'stage': 'Grand Final',
+            'status': 'upcoming',
+            'is_playoff': True
+        })
+    elif num_groups == 3 and qualifiers_per_group == 2:
+        # QF1 (C1 vs B2), QF2 (A2 vs C2), SF1 (A1 vs W_QF1), SF2 (B1 vs W_QF2), Grand Final (W_SF1 vs W_SF2)
+        qf1_id = f"fix_{tournament_id}_{match_counter}"
+        qf2_id = f"fix_{tournament_id}_{match_counter + 1}"
+        sf1_id = f"fix_{tournament_id}_{match_counter + 2}"
+        sf2_id = f"fix_{tournament_id}_{match_counter + 3}"
+        final_id = f"fix_{tournament_id}_{match_counter + 4}"
+        
+        playoff_matches.append({
+            'id': qf1_id, 'tournament_id': tournament_id, 'match_number': match_counter,
+            'team1_id': 'TBD_QUAL_C1', 'team1_name': 'Winner Group C (C1)', 'team1_short': 'C1', 'team1_color': '#10b981',
+            'team2_id': 'TBD_QUAL_B2', 'team2_name': 'Group B Runner-Up (B2)', 'team2_short': 'B2', 'team2_color': '#3b82f6',
+            'venue': 'Stadium Pitch 1', 'match_date': 'Quarter-Final 1', 'stage': 'Quarter-Final 1', 'status': 'upcoming',
+            'next_fixture_id': sf1_id, 'next_slot': 2, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': qf2_id, 'tournament_id': tournament_id, 'match_number': match_counter + 1,
+            'team1_id': 'TBD_QUAL_A2', 'team1_name': 'Group A Runner-Up (A2)', 'team1_short': 'A2', 'team1_color': '#ed6a4e',
+            'team2_id': 'TBD_QUAL_C2', 'team2_name': 'Group C Runner-Up (C2)', 'team2_short': 'C2', 'team2_color': '#10b981',
+            'venue': 'Stadium Pitch 2', 'match_date': 'Quarter-Final 2', 'stage': 'Quarter-Final 2', 'status': 'upcoming',
+            'next_fixture_id': sf2_id, 'next_slot': 2, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': sf1_id, 'tournament_id': tournament_id, 'match_number': match_counter + 2,
+            'team1_id': 'TBD_QUAL_A1', 'team1_name': 'Winner Group A (A1)', 'team1_short': 'A1', 'team1_color': '#ed6a4e',
+            'team2_id': f"TBD_M{match_counter}", 'team2_name': 'Winner QF1', 'team2_short': 'TBD', 'team2_color': '#64748b',
+            'venue': 'Stadium Arena 1', 'match_date': 'Semi-Final 1', 'stage': 'Semi-Final 1', 'status': 'upcoming',
+            'next_fixture_id': final_id, 'next_slot': 1, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': sf2_id, 'tournament_id': tournament_id, 'match_number': match_counter + 3,
+            'team1_id': 'TBD_QUAL_B1', 'team1_name': 'Winner Group B (B1)', 'team1_short': 'B1', 'team1_color': '#3b82f6',
+            'team2_id': f"TBD_M{match_counter + 1}", 'team2_name': 'Winner QF2', 'team2_short': 'TBD', 'team2_color': '#64748b',
+            'venue': 'Stadium Arena 2', 'match_date': 'Semi-Final 2', 'stage': 'Semi-Final 2', 'status': 'upcoming',
+            'next_fixture_id': final_id, 'next_slot': 2, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': final_id, 'tournament_id': tournament_id, 'match_number': match_counter + 4,
+            'team1_id': f"TBD_M{match_counter + 2}", 'team1_name': 'Winner Semi-Final 1', 'team1_short': 'TBD', 'team1_color': '#64748b',
+            'team2_id': f"TBD_M{match_counter + 3}", 'team2_name': 'Winner Semi-Final 2', 'team2_short': 'TBD', 'team2_color': '#64748b',
+            'venue': 'Grand Arena Stadium', 'match_date': 'Grand Final', 'stage': 'Grand Final', 'status': 'upcoming',
+            'is_playoff': True
+        })
+    elif num_groups == 4 and qualifiers_per_group == 1:
+        # SF1 (A1 vs B1), SF2 (C1 vs D1), Grand Final (Winner SF1 vs Winner SF2)
+        sf1_id = f"fix_{tournament_id}_{match_counter}"
+        sf2_id = f"fix_{tournament_id}_{match_counter + 1}"
+        final_id = f"fix_{tournament_id}_{match_counter + 2}"
+        
+        playoff_matches.append({
+            'id': sf1_id, 'tournament_id': tournament_id, 'match_number': match_counter,
+            'team1_id': 'TBD_QUAL_A1', 'team1_name': 'Winner Group A (A1)', 'team1_short': 'A1', 'team1_color': '#ed6a4e',
+            'team2_id': 'TBD_QUAL_B1', 'team2_name': 'Winner Group B (B1)', 'team2_short': 'B1', 'team2_color': '#3b82f6',
+            'venue': 'Stadium Pitch 1 Arena', 'match_date': 'Semi-Final 1', 'stage': 'Semi-Final 1', 'status': 'upcoming',
+            'next_fixture_id': final_id, 'next_slot': 1, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': sf2_id, 'tournament_id': tournament_id, 'match_number': match_counter + 1,
+            'team1_id': 'TBD_QUAL_C1', 'team1_name': 'Winner Group C (C1)', 'team1_short': 'C1', 'team1_color': '#10b981',
+            'team2_id': 'TBD_QUAL_D1', 'team2_name': 'Winner Group D (D1)', 'team2_short': 'D1', 'team2_color': '#f59e0b',
+            'venue': 'Stadium Pitch 2 Arena', 'match_date': 'Semi-Final 2', 'stage': 'Semi-Final 2', 'status': 'upcoming',
+            'next_fixture_id': final_id, 'next_slot': 2, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': final_id, 'tournament_id': tournament_id, 'match_number': match_counter + 2,
+            'team1_id': f"TBD_M{match_counter}", 'team1_name': 'Winner Semi-Final 1', 'team1_short': 'TBD', 'team1_color': '#64748b',
+            'team2_id': f"TBD_M{match_counter + 1}", 'team2_name': 'Winner Semi-Final 2', 'team2_short': 'TBD', 'team2_color': '#64748b',
+            'venue': 'Grand Arena Stadium', 'match_date': 'Grand Final', 'stage': 'Grand Final', 'status': 'upcoming',
+            'is_playoff': True
+        })
+    elif num_groups == 4 and qualifiers_per_group == 2:
+        # QF1 (A1 vs B2), QF2 (C1 vs D2), QF3 (B1 vs A2), QF4 (D1 vs C2), SF1 (W_QF1 vs W_QF2), SF2 (W_QF3 vs W_QF4), Grand Final
+        qf1_id = f"fix_{tournament_id}_{match_counter}"
+        qf2_id = f"fix_{tournament_id}_{match_counter + 1}"
+        qf3_id = f"fix_{tournament_id}_{match_counter + 2}"
+        qf4_id = f"fix_{tournament_id}_{match_counter + 3}"
+        sf1_id = f"fix_{tournament_id}_{match_counter + 4}"
+        sf2_id = f"fix_{tournament_id}_{match_counter + 5}"
+        final_id = f"fix_{tournament_id}_{match_counter + 6}"
+        
+        playoff_matches.append({
+            'id': qf1_id, 'tournament_id': tournament_id, 'match_number': match_counter,
+            'team1_id': 'TBD_QUAL_A1', 'team1_name': 'Winner Group A (A1)', 'team1_short': 'A1', 'team1_color': '#ed6a4e',
+            'team2_id': 'TBD_QUAL_B2', 'team2_name': 'Group B Runner-Up (B2)', 'team2_short': 'B2', 'team2_color': '#3b82f6',
+            'venue': 'Ground Pitch 1', 'match_date': 'Quarter-Final 1', 'stage': 'Quarter-Final 1', 'status': 'upcoming',
+            'next_fixture_id': sf1_id, 'next_slot': 1, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': qf2_id, 'tournament_id': tournament_id, 'match_number': match_counter + 1,
+            'team1_id': 'TBD_QUAL_C1', 'team1_name': 'Winner Group C (C1)', 'team1_short': 'C1', 'team1_color': '#10b981',
+            'team2_id': 'TBD_QUAL_D2', 'team2_name': 'Group D Runner-Up (D2)', 'team2_short': 'D2', 'team2_color': '#f59e0b',
+            'venue': 'Ground Pitch 2', 'match_date': 'Quarter-Final 2', 'stage': 'Quarter-Final 2', 'status': 'upcoming',
+            'next_fixture_id': sf1_id, 'next_slot': 2, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': qf3_id, 'tournament_id': tournament_id, 'match_number': match_counter + 2,
+            'team1_id': 'TBD_QUAL_B1', 'team1_name': 'Winner Group B (B1)', 'team1_short': 'B1', 'team1_color': '#3b82f6',
+            'team2_id': 'TBD_QUAL_A2', 'team2_name': 'Group A Runner-Up (A2)', 'team2_short': 'A2', 'team2_color': '#ed6a4e',
+            'venue': 'Ground Pitch 3', 'match_date': 'Quarter-Final 3', 'stage': 'Quarter-Final 3', 'status': 'upcoming',
+            'next_fixture_id': sf2_id, 'next_slot': 1, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': qf4_id, 'tournament_id': tournament_id, 'match_number': match_counter + 3,
+            'team1_id': 'TBD_QUAL_D1', 'team1_name': 'Winner Group D (D1)', 'team1_short': 'D1', 'team1_color': '#f59e0b',
+            'team2_id': 'TBD_QUAL_C2', 'team2_name': 'Group C Runner-Up (C2)', 'team2_short': 'C2', 'team2_color': '#10b981',
+            'venue': 'Ground Pitch 4', 'match_date': 'Quarter-Final 4', 'stage': 'Quarter-Final 4', 'status': 'upcoming',
+            'next_fixture_id': sf2_id, 'next_slot': 2, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': sf1_id, 'tournament_id': tournament_id, 'match_number': match_counter + 4,
+            'team1_id': f"TBD_M{match_counter}", 'team1_name': 'Winner QF1', 'team1_short': 'TBD', 'team1_color': '#64748b',
+            'team2_id': f"TBD_M{match_counter + 1}", 'team2_name': 'Winner QF2', 'team2_short': 'TBD', 'team2_color': '#64748b',
+            'venue': 'Arena Pitch 1', 'match_date': 'Semi-Final 1', 'stage': 'Semi-Final 1', 'status': 'upcoming',
+            'next_fixture_id': final_id, 'next_slot': 1, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': sf2_id, 'tournament_id': tournament_id, 'match_number': match_counter + 5,
+            'team1_id': f"TBD_M{match_counter + 2}", 'team1_name': 'Winner QF3', 'team1_short': 'TBD', 'team1_color': '#64748b',
+            'team2_id': f"TBD_M{match_counter + 3}", 'team2_name': 'Winner QF4', 'team2_short': 'TBD', 'team2_color': '#64748b',
+            'venue': 'Arena Pitch 2', 'match_date': 'Semi-Final 2', 'stage': 'Semi-Final 2', 'status': 'upcoming',
+            'next_fixture_id': final_id, 'next_slot': 2, 'is_playoff': True
+        })
+        playoff_matches.append({
+            'id': final_id, 'tournament_id': tournament_id, 'match_number': match_counter + 6,
+            'team1_id': f"TBD_M{match_counter + 4}", 'team1_name': 'Winner Semi-Final 1', 'team1_short': 'TBD', 'team1_color': '#64748b',
+            'team2_id': f"TBD_M{match_counter + 5}", 'team2_name': 'Winner Semi-Final 2', 'team2_short': 'TBD', 'team2_color': '#64748b',
+            'venue': 'Grand Arena Stadium', 'match_date': 'Grand Final', 'stage': 'Grand Final', 'status': 'upcoming',
+            'is_playoff': True
+        })
+        
+    fixtures.extend(playoff_matches)
+    return fixtures
+
 def create_tournament_with_squads(tournament_data):
     """
-    Creates a tournament, its teams, player squads, and generates schedule (auto, knockout, or manual).
+    Creates a tournament, its teams, player squads, and generates schedule (auto, knockout, groups, or manual).
     """
     import time
     tournament_id = tournament_data.get('id') or f"tour_{int(time.time() * 1000)}"
@@ -383,17 +725,20 @@ def create_tournament_with_squads(tournament_data):
     format_name = tournament_data.get('format', 'T20')
     owner = tournament_data.get('owner') or tournament_data.get('created_by') or 'Suraj'
     teams_data = tournament_data.get('teams', [])
-    schedule_mode = tournament_data.get('schedule_mode', 'auto') # 'auto', 'knockout', or 'manual'
+    schedule_mode = tournament_data.get('schedule_mode', 'auto') # 'auto', 'knockout', 'groups', or 'manual'
     rounds_count = int(tournament_data.get('rounds_count', 1))
     manual_fixtures = tournament_data.get('manual_fixtures', [])
     
     with get_db() as conn:
         cursor = conn.cursor()
         
+        num_groups = int(tournament_data.get('num_groups', 2))
+        qualifiers_per_group = int(tournament_data.get('qualifiers_per_group', 1))
+
         cursor.execute("""
-            INSERT OR REPLACE INTO tournaments (id, name, overs, format, points_win, points_tie, status, owner)
-            VALUES (?, ?, ?, ?, 2, 1, 'active', ?)
-        """, (tournament_id, name, overs, format_name, owner))
+            INSERT OR REPLACE INTO tournaments (id, name, overs, format, points_win, points_tie, status, owner, schedule_mode, num_groups, qualifiers_per_group)
+            VALUES (?, ?, ?, ?, 2, 1, 'active', ?, ?, ?, ?)
+        """, (tournament_id, name, overs, format_name, owner, schedule_mode, num_groups, qualifiers_per_group))
         
         created_teams = []
         for idx, t in enumerate(teams_data):
@@ -401,11 +746,12 @@ def create_tournament_with_squads(tournament_data):
             t_name = t.get('name', f"Team {idx+1}")
             t_short = t.get('short_name', t_name[:3].upper())
             t_color = t.get('color', ['#ed6a4e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][idx % 6])
+            t_group = t.get('group_name') or t.get('group') or f"Group {chr(65 + (idx % num_groups))}"
             
             cursor.execute("""
-                INSERT OR REPLACE INTO teams (id, tournament_id, name, short_name, color)
-                VALUES (?, ?, ?, ?, ?)
-            """, (t_id, tournament_id, t_name, t_short, t_color))
+                INSERT OR REPLACE INTO teams (id, tournament_id, name, short_name, color, group_name)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (t_id, tournament_id, t_name, t_short, t_color, t_group))
             
             cursor.execute("""
                 INSERT OR REPLACE INTO points_table (tournament_id, team_id, played, won, lost, tied, no_result, points, net_run_rate)
@@ -431,11 +777,16 @@ def create_tournament_with_squads(tournament_data):
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (p_id, tournament_id, t_id, p_num, p_name, p_role, is_cap, is_vc, p_bat, p_bowl))
                 
-            created_teams.append({'id': t_id, 'name': t_name, 'short_name': t_short, 'color': t_color})
+            created_teams.append({'id': t_id, 'name': t_name, 'short_name': t_short, 'color': t_color, 'group_name': t_group, 'group': t.get('group') or chr(65 + (idx % num_groups))})
             
-        # Generate fixtures
-        if schedule_mode == 'knockout':
+        # Fixtures from client or generator
+        client_fixtures = tournament_data.get('fixtures')
+        if client_fixtures and len(client_fixtures) > 0:
+            fixtures = client_fixtures
+        elif schedule_mode == 'knockout':
             fixtures = generate_knockout_schedule(created_teams, tournament_id)
+        elif schedule_mode == 'groups':
+            fixtures = generate_groups_schedule(created_teams, tournament_id, num_groups, qualifiers_per_group)
         elif schedule_mode == 'auto':
             fixtures = generate_round_robin_schedule(created_teams, tournament_id, rounds_count)
         else:
@@ -455,9 +806,9 @@ def create_tournament_with_squads(tournament_data):
                 
         for fix in fixtures:
             cursor.execute("""
-                INSERT OR REPLACE INTO fixtures (id, tournament_id, match_number, team1_id, team2_id, venue, match_date, status, stage, next_fixture_id, next_slot)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (fix['id'], tournament_id, fix['match_number'], fix['team1_id'], fix['team2_id'], fix.get('venue', 'Main Cricket Stadium'), fix.get('match_date', f"Match {fix['match_number']}"), fix.get('status', 'upcoming'), fix.get('stage'), fix.get('next_fixture_id'), fix.get('next_slot')))
+                INSERT OR REPLACE INTO fixtures (id, tournament_id, match_number, team1_id, team2_id, venue, match_date, status, stage, next_fixture_id, next_slot, group_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (fix['id'], tournament_id, fix['match_number'], fix['team1_id'], fix['team2_id'], fix.get('venue', 'Main Cricket Stadium'), fix.get('match_date', f"Match {fix['match_number']}"), fix.get('status', 'upcoming'), fix.get('stage'), fix.get('next_fixture_id'), fix.get('next_slot'), fix.get('group_name') or fix.get('group')))
             
         conn.commit()
         return tournament_id
@@ -531,11 +882,35 @@ def get_tournament_full(tournament_id):
             WHERE f.tournament_id = ?
             ORDER BY f.match_number ASC
         """, (tournament_id,))
-        t_dict['fixtures'] = [dict(r) for r in cursor.fetchall()]
+        raw_fixtures = [dict(r) for r in cursor.fetchall()]
+        for f in raw_fixtures:
+            t1_id = str(f.get('team1_id') or '')
+            t2_id = str(f.get('team2_id') or '')
+            if t1_id.startswith('TBD_M'):
+                m_num = t1_id.replace('TBD_M', '')
+                f['team1_name'] = f"TBD (Winner Match #{m_num})"
+                f['team1_short'] = "TBD"
+            elif t1_id.startswith('TBD_QUAL_'):
+                parts = t1_id.replace('TBD_QUAL_', '')
+                g_char = parts[0] if len(parts) > 0 else 'A'
+                rank = parts[1:] if len(parts) > 1 else '1'
+                f['team1_name'] = f"Winner Group {g_char}" if rank == '1' else f"Group {g_char} Runner-Up"
+                f['team1_short'] = f"{g_char}{rank}"
+            if t2_id.startswith('TBD_M'):
+                m_num = t2_id.replace('TBD_M', '')
+                f['team2_name'] = f"TBD (Winner Match #{m_num})"
+                f['team2_short'] = "TBD"
+            elif t2_id.startswith('TBD_QUAL_'):
+                parts = t2_id.replace('TBD_QUAL_', '')
+                g_char = parts[0] if len(parts) > 0 else 'A'
+                rank = parts[1:] if len(parts) > 1 else '1'
+                f['team2_name'] = f"Winner Group {g_char}" if rank == '1' else f"Group {g_char} Runner-Up"
+                f['team2_short'] = f"{g_char}{rank}"
+        t_dict['fixtures'] = raw_fixtures
         
         # Points Table
         cursor.execute("""
-            SELECT pt.*, t.name as team_name, t.short_name, t.color
+            SELECT pt.*, t.name as team_name, t.short_name, t.color, t.group_name
             FROM points_table pt
             JOIN teams t ON pt.team_id = t.id
             WHERE pt.tournament_id = ?
@@ -816,7 +1191,62 @@ def update_points_table_after_match(tournament_id, match_data):
                     else:
                         cursor.execute("UPDATE fixtures SET team2_id = ? WHERE id = ? AND (team2_id LIKE 'TBD%' OR team2_id IS NULL)", (winner_id, next_fix_id))
             
+            # Resolve group qualifiers if in groups tournament mode
+            check_and_resolve_group_qualifiers(cursor, tournament_id)
+
         conn.commit()
+
+def check_and_resolve_group_qualifiers(cursor, tournament_id):
+    """
+    Checks if all group stage matches are finished in a groups-schedule tournament,
+    and advances group winners and qualifiers into playoff fixtures.
+    """
+    cursor.execute("SELECT schedule_mode, num_groups, qualifiers_per_group FROM tournaments WHERE id = ?", (tournament_id,))
+    t_row = cursor.fetchone()
+    if not t_row or t_row['schedule_mode'] != 'groups':
+        return
+        
+    num_groups = t_row['num_groups'] or 2
+    qualifiers_per_group = t_row['qualifiers_per_group'] or 1
+    
+    for g_idx in range(num_groups):
+        g_letter = chr(65 + g_idx)
+        g_name = f"Group {g_letter}"
+        
+        cursor.execute("""
+            SELECT status FROM fixtures 
+            WHERE tournament_id = ? AND (group_name = ? OR stage = ?)
+        """, (tournament_id, g_name, g_name))
+        g_fixtures = cursor.fetchall()
+        if not g_fixtures:
+            continue
+        all_completed = all(f['status'] == 'completed' for f in g_fixtures)
+        if not all_completed:
+            continue
+            
+        cursor.execute("""
+            SELECT pt.team_id, t.name, t.short_name, t.color
+            FROM points_table pt
+            JOIN teams t ON pt.team_id = t.id
+            WHERE pt.tournament_id = ? AND (t.group_name = ? OR t.group_name LIKE ?)
+            ORDER BY pt.points DESC, pt.net_run_rate DESC, pt.won DESC
+        """, (tournament_id, g_name, f"%{g_letter}%"))
+        ranked_teams = cursor.fetchall()
+        
+        for rank in range(1, qualifiers_per_group + 1):
+            if rank <= len(ranked_teams):
+                q_team = ranked_teams[rank - 1]
+                tbd_placeholder = f"TBD_QUAL_{g_letter}{rank}"
+                cursor.execute("""
+                    UPDATE fixtures
+                    SET team1_id = ?
+                    WHERE tournament_id = ? AND team1_id = ?
+                """, (q_team['team_id'], tournament_id, tbd_placeholder))
+                cursor.execute("""
+                    UPDATE fixtures
+                    SET team2_id = ?
+                    WHERE tournament_id = ? AND team2_id = ?
+                """, (q_team['team_id'], tournament_id, tbd_placeholder))
 
 def seed_sample_tournament_if_empty():
     """

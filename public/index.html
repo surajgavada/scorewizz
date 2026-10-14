@@ -1319,7 +1319,50 @@
                 </div>
               </label>
 
-              <!-- OPTION 3: MANUAL SCHEDULE -->
+              <!-- OPTION 3: WORLD CUP / GROUPS + PLAYOFF STAGE -->
+              <label class="schedule-option" id="scheduleOptGroups">
+                <input type="radio" name="scheduleType" value="groups" />
+                <div class="opt-content">
+                  <strong>World Cup Format (Group Stage + Playoff Knockouts)</strong>
+                  <p class="muted">Divide teams into groups. Teams play round-robin matches in their group, and top qualified teams from each group play each other in the finals!</p>
+
+                  <div class="form-group mt-3" id="wizGroupsConfig" style="display: none; margin-bottom: 0;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                      <div>
+                        <label style="font-weight: 700; color: var(--ink); font-size: 13px;">How many groups?</label>
+                        <select id="wizNumGroups" class="form-control" style="background: var(--bg-card); margin-top: 4px;">
+                          <option value="2" selected>2 Groups (Group A & Group B)</option>
+                          <option value="3">3 Groups (Group A, B, C)</option>
+                          <option value="4">4 Groups (Group A, B, C, D)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style="font-weight: 700; color: var(--ink); font-size: 13px;">Teams qualifying per group:</label>
+                        <select id="wizQualifiersPerGroup" class="form-control" style="background: var(--bg-card); margin-top: 4px;">
+                          <option value="1" selected>Top 1 Team (Winner of each group)</option>
+                          <option value="2">Top 2 Teams (Top 2 from each group)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- Groups Preview Box -->
+                    <div id="wizGroupsPreviewArea" style="background: var(--bg-card); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); margin-bottom: 10px;">
+                      <!-- Dynamic group cards rendered here -->
+                    </div>
+
+                    <div style="font-size: 12px; color: var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                      <span id="wizGroupsCalculatedNote">Group matches + Playoffs</span>
+                      <button type="button" class="btn btn-xs btn-outline" id="wizToggleGroupsGraphBtn" style="font-size: 11px;">View Playoff Bracket</button>
+                    </div>
+
+                    <div id="wizGroupsGraphPreview" style="display: none; margin-top: 10px; background: var(--bg-card); padding: 14px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); overflow-x: auto;">
+                      <!-- Dynamically rendered bracket tree for playoffs -->
+                    </div>
+                  </div>
+                </div>
+              </label>
+
+              <!-- OPTION 4: MANUAL SCHEDULE -->
               <label class="schedule-option" id="scheduleOptManual">
                 <input type="radio" name="scheduleType" value="manual" />
                 <div class="opt-content">
