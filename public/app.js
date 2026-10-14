@@ -735,12 +735,18 @@ function generateKnockoutSchedule(teams, tournamentId) {
 }
 
 function generateGroupsKnockoutSchedule(teams, tournamentId, numGroups = 2, qualifiersPerGroup = 1) {
-  const gCount = Math.max(2, Math.min(4, Number(numGroups) || 2));
+  const gCount = Math.max(2, Math.min(16, Number(numGroups) || 2));
   const qCount = Math.max(1, Math.min(2, Number(qualifiersPerGroup) || 1));
 
   const groups = Array.from({ length: gCount }, () => []);
   teams.forEach((t, idx) => {
-    const gIdx = idx % gCount;
+    let gIdx = idx % gCount;
+    if (t.group && typeof t.group === 'string') {
+      const code = t.group.charCodeAt(0) - 65;
+      if (code >= 0 && code < gCount) {
+        gIdx = code;
+      }
+    }
     const gLetter = String.fromCharCode(65 + gIdx);
     t.group_name = `Group ${gLetter}`;
     t.group = gLetter;
@@ -1044,6 +1050,52 @@ function generateGroupsKnockoutSchedule(teams, tournamentId, numGroups = 2, qual
       team2_id: `TBD_M${matchCounter + 5}`, team2_name: 'Winner Semi-Final 2', team2_short: 'TBD', team2_color: '#64748b',
       venue: 'Grand Arena Stadium', match_date: 'Grand Final', stage: 'Grand Final', status: 'upcoming',
       is_playoff: true
+    });
+  } else {
+    const qualTeams = [];
+    for (let r = 1; r <= qCount; r++) {
+      for (let g = 0; g < gCount; g++) {
+        const letter = String.fromCharCode(65 + g);
+        qualTeams.push({
+          id: `TBD_QUAL_${letter}${r}`,
+          name: r === 1 ? `Winner Group ${letter}` : `Group ${letter} #${r}`,
+          short_name: `${letter}${r}`,
+          color: ['#ed6a4e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][g % 6]
+        });
+      }
+    }
+    const universalKo = generateKnockoutSchedule(qualTeams, tournamentId);
+    const idMap = {};
+    universalKo.forEach((m, idx) => {
+      const oldId = m.id;
+      const newNum = matchCounter + idx;
+      const newId = `fix_${tournamentId}_${newNum}`;
+      idMap[oldId] = { newId, newNum };
+      m.id = newId;
+      m.match_number = newNum;
+      m.is_playoff = true;
+    });
+    universalKo.forEach((m) => {
+      if (m.next_fixture_id && idMap[m.next_fixture_id]) {
+        m.next_fixture_id = idMap[m.next_fixture_id].newId;
+      }
+      if (m.team1_id && m.team1_id.startsWith('TBD_M')) {
+        const oldNum = m.team1_id.replace('TBD_M', '');
+        const tOld = universalKo.find(om => String(om.match_number) === oldNum || om.id.endsWith(`_${oldNum}`));
+        if (tOld && idMap[tOld.id]) {
+          m.team1_id = `TBD_M${idMap[tOld.id].newNum}`;
+          m.team1_name = `Winner Match #${idMap[tOld.id].newNum}`;
+        }
+      }
+      if (m.team2_id && m.team2_id.startsWith('TBD_M')) {
+        const oldNum = m.team2_id.replace('TBD_M', '');
+        const tOld = universalKo.find(om => String(om.match_number) === oldNum || om.id.endsWith(`_${oldNum}`));
+        if (tOld && idMap[tOld.id]) {
+          m.team2_id = `TBD_M${idMap[tOld.id].newNum}`;
+          m.team2_name = `Winner Match #${idMap[tOld.id].newNum}`;
+        }
+      }
+      playoffMatches.push(m);
     });
   }
 
@@ -4830,18 +4882,135 @@ function setupEventListeners() {
       if (autoConfig) autoConfig.style.display = val === 'auto' ? 'block' : 'none';
       if (groupsConfig) groupsConfig.style.display = val === 'groups' ? 'block' : 'none';
       if (val === 'manual') renderWizardManualMatchesList();
-      if (val === 'groups') updateWizardGroupsPreview();
+      if (val === 'groups') {
+        updateWizardGroupsPreview();
+        openGroupsConfigModal();
+      }
     };
   });
 
   const wizNumGroupsSelect = document.querySelector('#wizNumGroups');
   if (wizNumGroupsSelect) {
-    wizNumGroupsSelect.onchange = () => updateWizardGroupsPreview();
+    wizNumGroupsSelect.onchange = () => {
+      const val = Number(wizNumGroupsSelect.value) || 2;
+      document.querySelectorAll('.wiz-grp-pill').forEach((b) => {
+        b.classList.toggle('active', Number(b.dataset.groups) === val);
+      });
+      if (appState.wizardData.teams) {
+        appState.wizardData.teams.forEach((t, i) => {
+          t.group = String.fromCharCode(65 + (i % val));
+          t.group_name = `Group ${t.group}`;
+        });
+      }
+      updateWizardGroupsPreview();
+    };
   }
 
   const wizQualifiersSelect = document.querySelector('#wizQualifiersPerGroup');
   if (wizQualifiersSelect) {
-    wizQualifiersSelect.onchange = () => updateWizardGroupsPreview();
+    wizQualifiersSelect.onchange = () => {
+      const val = Number(wizQualifiersSelect.value) || 1;
+      document.querySelectorAll('.wiz-qual-pill').forEach((b) => {
+        b.classList.toggle('active', Number(b.dataset.qual) === val);
+      });
+      updateWizardGroupsPreview();
+    };
+  }
+
+  // Wizard Step 4 Groups Quick Pills
+  document.querySelectorAll('.wiz-grp-pill').forEach((btn) => {
+    btn.onclick = () => {
+      document.querySelectorAll('.wiz-grp-pill').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      const val = Number(btn.dataset.groups) || 2;
+      const sel = document.querySelector('#wizNumGroups');
+      if (sel) sel.value = String(val);
+      if (appState.wizardData.teams) {
+        appState.wizardData.teams.forEach((t, i) => {
+          t.group = String.fromCharCode(65 + (i % val));
+          t.group_name = `Group ${t.group}`;
+        });
+      }
+      updateWizardGroupsPreview();
+    };
+  });
+
+  document.querySelectorAll('.wiz-qual-pill').forEach((btn) => {
+    btn.onclick = () => {
+      document.querySelectorAll('.wiz-qual-pill').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      const val = Number(btn.dataset.qual) || 1;
+      const sel = document.querySelector('#wizQualifiersPerGroup');
+      if (sel) sel.value = String(val);
+      updateWizardGroupsPreview();
+    };
+  });
+
+  const shuffleGroupsBtn = document.querySelector('#wizShuffleGroupsBtn');
+  if (shuffleGroupsBtn) {
+    shuffleGroupsBtn.onclick = () => {
+      if (!appState.wizardData.teams || appState.wizardData.teams.length < 2) return;
+      for (let i = appState.wizardData.teams.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [appState.wizardData.teams[i], appState.wizardData.teams[j]] = [appState.wizardData.teams[j], appState.wizardData.teams[i]];
+      }
+      const numGroups = Number(document.querySelector('#wizNumGroups')?.value) || 2;
+      appState.wizardData.teams.forEach((t, i) => {
+        t.group = String.fromCharCode(65 + (i % numGroups));
+        t.group_name = `Group ${t.group}`;
+      });
+      updateWizardGroupsPreview();
+      showToast('Teams shuffled across groups!');
+    };
+  }
+
+  // Groups Configuration Modal Listeners
+  const wizOpenGroupsModalBtn = document.querySelector('#wizOpenGroupsModalBtn');
+  if (wizOpenGroupsModalBtn) {
+    wizOpenGroupsModalBtn.onclick = () => openGroupsConfigModal();
+  }
+
+  const closeGroupsModalBtn = document.querySelector('#closeGroupsConfigModalBtn');
+  if (closeGroupsModalBtn) {
+    closeGroupsModalBtn.onclick = () => closeGroupsConfigModal();
+  }
+
+  const cancelGroupsModalBtn = document.querySelector('#cancelGroupsConfigModalBtn');
+  if (cancelGroupsModalBtn) {
+    cancelGroupsModalBtn.onclick = () => closeGroupsConfigModal();
+  }
+
+  const confirmGroupsBtn = document.querySelector('#confirmGroupsConfigModalBtn');
+  if (confirmGroupsBtn) {
+    confirmGroupsBtn.onclick = () => {
+      const numSelect = document.querySelector('#groupsModalNumSelect');
+      const numGroups = Number(numSelect?.value) || 2;
+      const activeQualPill = document.querySelector('.group-qual-pill.active');
+      const qualifiers = Number(activeQualPill?.dataset.qual) || 1;
+
+      const wizNumSelect = document.querySelector('#wizNumGroups');
+      if (wizNumSelect) wizNumSelect.value = String(numGroups);
+      const wizQualSelect = document.querySelector('#wizQualifiersPerGroup');
+      if (wizQualSelect) wizQualSelect.value = String(qualifiers);
+
+      document.querySelectorAll('.wiz-grp-pill').forEach((b) => {
+        b.classList.toggle('active', Number(b.dataset.groups) === numGroups);
+      });
+      document.querySelectorAll('.wiz-qual-pill').forEach((b) => {
+        b.classList.toggle('active', Number(b.dataset.qual) === qualifiers);
+      });
+
+      if (appState.wizardData.teams) {
+        appState.wizardData.teams.forEach((t, i) => {
+          t.group = String.fromCharCode(65 + (i % numGroups));
+          t.group_name = `Group ${t.group}`;
+        });
+      }
+
+      updateWizardGroupsPreview();
+      closeGroupsConfigModal();
+      showToast(`Tournament groups configured: ${numGroups} groups, top ${qualifiers} advance!`);
+    };
   }
 
   const addManBtn = document.querySelector('#wizAddManualMatchBtn');
@@ -5189,6 +5358,160 @@ function showToast(message) {
   toast.classList.add('show');
   clearTimeout(showToast.timer);
   showToast.timer = setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+// ----------------------------------------------------
+// GROUPS CONFIGURATION MODAL (World Cup Format Setup)
+// ----------------------------------------------------
+
+window.openGroupsConfigModal = function () {
+  const modal = document.querySelector('#groupsConfigModal');
+  if (!modal) return;
+
+  const teams = appState.wizardData.teams || [];
+  const teamCountInfo = document.querySelector('#groupsModalTeamCountInfo');
+  if (teamCountInfo) {
+    teamCountInfo.textContent = `${teams.length} Teams`;
+  }
+
+  const numSelect = document.querySelector('#groupsModalNumSelect');
+  const pillsContainer = document.querySelector('#groupsModalNumPills');
+  const wizNumGroups = document.querySelector('#wizNumGroups');
+  const currentGroupsVal = wizNumGroups ? Number(wizNumGroups.value) || 2 : 2;
+  const wizQual = document.querySelector('#wizQualifiersPerGroup');
+  const currentQualVal = wizQual ? Number(wizQual.value) || 1 : 1;
+
+  const maxGroups = Math.max(2, Math.min(teams.length || 4, 8));
+
+  if (numSelect) {
+    let optsHtml = '';
+    for (let g = 2; g <= Math.min(maxGroups, 6); g++) {
+      const letters = Array.from({ length: g }, (_, i) => String.fromCharCode(65 + i)).join(', ');
+      optsHtml += `<option value="${g}">${g} Groups (${letters})</option>`;
+    }
+    numSelect.innerHTML = optsHtml;
+    numSelect.value = String(Math.min(currentGroupsVal, maxGroups));
+  }
+
+  if (pillsContainer) {
+    let pillsHtml = '';
+    const pillCounts = [2, 3, 4].filter(g => g <= maxGroups);
+    if (pillCounts.length < 2) pillCounts.push(2);
+    pillCounts.forEach(g => {
+      const active = g === Number(numSelect?.value || currentGroupsVal) ? 'active' : '';
+      pillsHtml += `<button type="button" class="btn btn-sm btn-outline group-num-pill ${active}" data-groups="${g}">${g} Groups</button>`;
+    });
+    pillsContainer.innerHTML = pillsHtml;
+
+    pillsContainer.querySelectorAll('.group-num-pill').forEach(btn => {
+      btn.onclick = () => {
+        pillsContainer.querySelectorAll('.group-num-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (numSelect) numSelect.value = btn.dataset.groups;
+        updateGroupsModalPreview();
+      };
+    });
+  }
+
+  const qualPills = document.querySelectorAll('.group-qual-pill');
+  qualPills.forEach(btn => {
+    btn.classList.toggle('active', Number(btn.dataset.qual) === currentQualVal);
+    btn.onclick = () => {
+      qualPills.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      updateGroupsModalPreview();
+    };
+  });
+
+  if (numSelect) {
+    numSelect.onchange = () => {
+      const val = Number(numSelect.value);
+      pillsContainer?.querySelectorAll('.group-num-pill').forEach(b => {
+        b.classList.toggle('active', Number(b.dataset.groups) === val);
+      });
+      updateGroupsModalPreview();
+    };
+  }
+
+  updateGroupsModalPreview();
+  modal.classList.add('show');
+};
+
+window.closeGroupsConfigModal = function () {
+  const modal = document.querySelector('#groupsConfigModal');
+  if (modal) modal.classList.remove('show');
+};
+
+function updateGroupsModalPreview() {
+  const numSelect = document.querySelector('#groupsModalNumSelect');
+  const numGroups = Number(numSelect?.value) || 2;
+  const activeQualPill = document.querySelector('.group-qual-pill.active');
+  const qualifiers = Number(activeQualPill?.dataset.qual) || 1;
+  const teams = appState.wizardData.teams || [];
+
+  const teamsPerGroupNote = document.querySelector('#groupsModalTeamsPerGroupNote');
+  if (teamsPerGroupNote) {
+    const avg = teams.length > 0 ? (teams.length / numGroups).toFixed(1).replace('.0', '') : '2';
+    teamsPerGroupNote.textContent = `~${avg} teams per group (${teams.length} teams divided into ${numGroups} groups)`;
+  }
+
+  const playoffNote = document.querySelector('#groupsModalPlayoffStructureNote');
+  if (playoffNote) {
+    if (numGroups === 2 && qualifiers === 1) {
+      playoffNote.textContent = 'Playoff format: Grand Final (Winner Group A vs Winner Group B)';
+    } else if (numGroups === 2 && qualifiers === 2) {
+      playoffNote.textContent = 'Playoff format: Semi-Finals (A1 vs B2, B1 vs A2) + Grand Final';
+    } else if (numGroups === 3 && qualifiers === 1) {
+      playoffNote.textContent = 'Playoff format: Playoff Eliminator (B1 vs C1) + Grand Final (A1 vs Winner)';
+    } else if (numGroups === 3 && qualifiers === 2) {
+      playoffNote.textContent = 'Playoff format: Quarter-Finals (6 teams) + Semi-Finals + Grand Final';
+    } else if (numGroups === 4 && qualifiers === 1) {
+      playoffNote.textContent = 'Playoff format: Semi-Finals (4 Group Winners) + Grand Final';
+    } else if (numGroups === 4 && qualifiers === 2) {
+      playoffNote.textContent = 'Playoff format: Quarter-Finals (8 teams) -> Semis -> Grand Final';
+    } else {
+      playoffNote.textContent = `Playoff format: ${numGroups * qualifiers}-Team Knockout Bracket -> Grand Final`;
+    }
+  }
+
+  const previewBox = document.querySelector('#groupsModalPreviewBox');
+  if (previewBox) {
+    const groups = Array.from({ length: numGroups }, (_, i) => ({
+      name: `Group ${String.fromCharCode(65 + i)}`,
+      letter: String.fromCharCode(65 + i),
+      teams: []
+    }));
+
+    teams.forEach((t, i) => {
+      groups[i % numGroups].teams.push(t);
+    });
+
+    let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">`;
+    groups.forEach((g) => {
+      html += `
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 8px;">
+          <div style="font-weight: 700; font-size: 11px; color: var(--gold); border-bottom: 1px solid var(--line); padding-bottom: 3px; margin-bottom: 4px; display: flex; justify-content: space-between;">
+            <span>${g.name}</span>
+            <span style="color: var(--ink-muted);">${g.teams.length} teams</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+      `;
+      g.teams.forEach((t) => {
+        html += `
+          <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ink);">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: ${t.color || '#ed6a4e'}; flex-shrink: 0;"></span>
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${t.name}</span>
+          </div>
+        `;
+      });
+      html += `
+          </div>
+        </div>
+      `;
+    });
+    html += `</div>`;
+    previewBox.innerHTML = html;
+  }
 }
 
 // ----------------------------------------------------
@@ -5641,16 +5964,15 @@ function buildWizardScheduleStep() {
   if (wizNumGroupsSelect) {
     const n = (appState.wizardData.teams || []).length;
     const currentVal = wizNumGroupsSelect.value;
-    let maxGroups = 2;
-    if (n >= 8) maxGroups = 4;
-    else if (n >= 6) maxGroups = 3;
-    else maxGroups = 2;
+    const maxGroups = Math.max(2, Math.min(n || 4, 8));
 
-    let optsHtml = '<option value="2">2 Groups (Group A & Group B)</option>';
-    if (maxGroups >= 3) optsHtml += '<option value="3">3 Groups (Group A, B, C)</option>';
-    if (maxGroups >= 4) optsHtml += '<option value="4">4 Groups (Group A, B, C, D)</option>';
+    let optsHtml = '';
+    for (let g = 2; g <= Math.min(maxGroups, 6); g++) {
+      const letters = Array.from({ length: g }, (_, i) => String.fromCharCode(65 + i)).join(', ');
+      optsHtml += `<option value="${g}">${g} Groups (${letters})</option>`;
+    }
     wizNumGroupsSelect.innerHTML = optsHtml;
-    if (Number(currentVal) <= maxGroups) {
+    if (Number(currentVal) >= 2 && Number(currentVal) <= maxGroups) {
       wizNumGroupsSelect.value = currentVal;
     } else {
       wizNumGroupsSelect.value = '2';
@@ -5672,6 +5994,14 @@ function updateWizardGroupsPreview() {
   const qualifiersPerGroup = Number(qualifiersSelect?.value) || 1;
   const teams = appState.wizardData.teams || [];
 
+  // Sync wiz quick-pills active status
+  document.querySelectorAll('.wiz-grp-pill').forEach((b) => {
+    b.classList.toggle('active', Number(b.dataset.groups) === numGroups);
+  });
+  document.querySelectorAll('.wiz-qual-pill').forEach((b) => {
+    b.classList.toggle('active', Number(b.dataset.qual) === qualifiersPerGroup);
+  });
+
   const groups = Array.from({ length: numGroups }, (_, i) => ({
     name: `Group ${String.fromCharCode(65 + i)}`,
     letter: String.fromCharCode(65 + i),
@@ -5679,7 +6009,17 @@ function updateWizardGroupsPreview() {
   }));
 
   teams.forEach((t, i) => {
-    groups[i % numGroups].teams.push(t);
+    let gIdx = i % numGroups;
+    if (t.group && typeof t.group === 'string') {
+      const code = t.group.charCodeAt(0) - 65;
+      if (code >= 0 && code < numGroups) {
+        gIdx = code;
+      }
+    }
+    const gLetter = String.fromCharCode(65 + gIdx);
+    t.group = gLetter;
+    t.group_name = `Group ${gLetter}`;
+    groups[gIdx].teams.push({ team: t, originalIndex: i });
   });
 
   let groupMatchesCount = 0;
@@ -5695,12 +6035,13 @@ function updateWizardGroupsPreview() {
   else if (numGroups === 3 && qualifiersPerGroup === 2) playoffMatchesCount = 5;
   else if (numGroups === 4 && qualifiersPerGroup === 1) playoffMatchesCount = 3;
   else if (numGroups === 4 && qualifiersPerGroup === 2) playoffMatchesCount = 7;
+  else playoffMatchesCount = (numGroups * qualifiersPerGroup) - 1;
 
   if (noteEl) {
     noteEl.innerHTML = `<strong>${groupMatchesCount + playoffMatchesCount} total matches</strong> (${groupMatchesCount} group round-robin + ${playoffMatchesCount} playoff knockouts)`;
   }
 
-  let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">`;
+  let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;">`;
   groups.forEach((g) => {
     html += `
       <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px;">
@@ -5708,13 +6049,19 @@ function updateWizardGroupsPreview() {
           <strong style="font-size: 13px; color: var(--gold);">${g.name}</strong>
           <span class="badge" style="font-size: 10px;">${g.teams.length} ${g.teams.length === 1 ? 'team' : 'teams'}</span>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
     `;
-    g.teams.forEach((t) => {
+    g.teams.forEach(({ team: t, originalIndex: teamIdx }) => {
+      const groupOptions = groups.map((grp) => `<option value="${grp.letter}" ${grp.letter === t.group ? 'selected' : ''}>${grp.name}</option>`).join('');
       html += `
-        <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink);">
-          <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${t.color || '#ed6a4e'}; flex-shrink: 0;"></span>
-          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${t.name}</span>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--ink); background: rgba(0,0,0,0.15); padding: 4px 6px; border-radius: var(--radius-xs); border: 1px solid rgba(255,255,255,0.05);">
+          <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; min-width: 0;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${t.color || '#ed6a4e'}; flex-shrink: 0;"></span>
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;">${t.name}</span>
+          </div>
+          <select class="form-control wiz-team-grp-select" data-team-index="${teamIdx}" style="padding: 1px 4px; font-size: 10px; height: 22px; width: 75px; flex-shrink: 0;" title="Change team group">
+            ${groupOptions}
+          </select>
         </div>
       `;
     });
@@ -5725,6 +6072,18 @@ function updateWizardGroupsPreview() {
   });
   html += `</div>`;
   previewArea.innerHTML = html;
+
+  // Re-assignment select handlers
+  previewArea.querySelectorAll('.wiz-team-grp-select').forEach((sel) => {
+    sel.onchange = (e) => {
+      const idx = Number(e.target.dataset.teamIndex);
+      if (appState.wizardData.teams && appState.wizardData.teams[idx]) {
+        appState.wizardData.teams[idx].group = e.target.value;
+        appState.wizardData.teams[idx].group_name = `Group ${e.target.value}`;
+        updateWizardGroupsPreview();
+      }
+    };
+  });
 
   const graphPreview = document.querySelector('#wizGroupsGraphPreview');
   if (graphPreview && graphPreview.style.display !== 'none') {
@@ -5853,7 +6212,11 @@ async function handleWizardLaunch() {
 
   if (scheduleType === 'groups') {
     teams.forEach((t, i) => {
-      const gLetter = String.fromCharCode(65 + (i % numGroups));
+      const orig = appState.wizardData.teams[i];
+      let gLetter = orig?.group;
+      if (!gLetter || (gLetter.charCodeAt(0) - 65) >= numGroups || (gLetter.charCodeAt(0) - 65) < 0) {
+        gLetter = String.fromCharCode(65 + (i % numGroups));
+      }
       t.group = gLetter;
       t.group_name = `Group ${gLetter}`;
     });

@@ -398,12 +398,16 @@ def generate_groups_schedule(teams, tournament_id, num_groups=2, qualifiers_per_
     1. Single round-robin matches within each group.
     2. Knockout playoff matches (Final, or Semi-Finals + Final, or QFs + SFs + Final) between group qualifiers.
     """
-    num_groups = max(2, min(4, int(num_groups)))
+    num_groups = max(2, min(16, int(num_groups)))
     qualifiers_per_group = max(1, min(2, int(qualifiers_per_group)))
     
     groups = [[] for _ in range(num_groups)]
     for idx, t in enumerate(teams):
         g_idx = idx % num_groups
+        if t.get('group') and isinstance(t['group'], str):
+            code = ord(t['group'][0].upper()) - 65
+            if 0 <= code < num_groups:
+                g_idx = code
         g_letter = chr(65 + g_idx)
         t['group_name'] = f"Group {g_letter}"
         t['group'] = g_letter
@@ -710,6 +714,43 @@ def generate_groups_schedule(teams, tournament_id, num_groups=2, qualifiers_per_
             'venue': 'Grand Arena Stadium', 'match_date': 'Grand Final', 'stage': 'Grand Final', 'status': 'upcoming',
             'is_playoff': True
         })
+    else:
+        qual_teams = []
+        for r in range(1, qualifiers_per_group + 1):
+            for g in range(num_groups):
+                g_char = chr(65 + g)
+                qual_teams.append({
+                    'id': f"TBD_QUAL_{g_char}{r}",
+                    'name': f"Winner Group {g_char}" if r == 1 else f"Group {g_char} #{r}",
+                    'short_name': f"{g_char}{r}",
+                    'color': ['#ed6a4e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][g % 6]
+                })
+        universal_ko = generate_knockout_schedule(qual_teams, tournament_id)
+        id_map = {}
+        for idx, m in enumerate(universal_ko):
+            old_id = m['id']
+            new_num = match_counter + idx
+            new_id = f"fix_{tournament_id}_{new_num}"
+            id_map[old_id] = {'new_id': new_id, 'new_num': new_num}
+            m['id'] = new_id
+            m['match_number'] = new_num
+            m['is_playoff'] = True
+        for m in universal_ko:
+            if m.get('next_fixture_id') and m['next_fixture_id'] in id_map:
+                m['next_fixture_id'] = id_map[m['next_fixture_id']]['new_id']
+            if m.get('team1_id') and m['team1_id'].startswith('TBD_M'):
+                old_num = m['team1_id'].replace('TBD_M', '')
+                t_old = next((om for om in universal_ko if str(om.get('match_number')) == old_num or om['id'].endswith(f"_{old_num}")), None)
+                if t_old and t_old['id'] in id_map:
+                    m['team1_id'] = f"TBD_M{id_map[t_old['id']]['new_num']}"
+                    m['team1_name'] = f"Winner Match #{id_map[t_old['id']]['new_num']}"
+            if m.get('team2_id') and m['team2_id'].startswith('TBD_M'):
+                old_num = m['team2_id'].replace('TBD_M', '')
+                t_old = next((om for om in universal_ko if str(om.get('match_number')) == old_num or om['id'].endswith(f"_{old_num}")), None)
+                if t_old and t_old['id'] in id_map:
+                    m['team2_id'] = f"TBD_M{id_map[t_old['id']]['new_num']}"
+                    m['team2_name'] = f"Winner Match #{id_map[t_old['id']]['new_num']}"
+            playoff_matches.append(m)
         
     fixtures.extend(playoff_matches)
     return fixtures
@@ -746,7 +787,13 @@ def create_tournament_with_squads(tournament_data):
             t_name = t.get('name', f"Team {idx+1}")
             t_short = t.get('short_name', t_name[:3].upper())
             t_color = t.get('color', ['#ed6a4e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][idx % 6])
-            t_group = t.get('group_name') or t.get('group') or f"Group {chr(65 + (idx % num_groups))}"
+            raw_grp = t.get('group') or t.get('group_name')
+            if raw_grp:
+                t_grp_letter = str(raw_grp).replace('Group ', '').strip().upper()[:1]
+                t_group = f"Group {t_grp_letter}"
+            else:
+                t_grp_letter = chr(65 + (idx % num_groups))
+                t_group = f"Group {t_grp_letter}"
             
             cursor.execute("""
                 INSERT OR REPLACE INTO teams (id, tournament_id, name, short_name, color, group_name)
@@ -777,7 +824,7 @@ def create_tournament_with_squads(tournament_data):
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (p_id, tournament_id, t_id, p_num, p_name, p_role, is_cap, is_vc, p_bat, p_bowl))
                 
-            created_teams.append({'id': t_id, 'name': t_name, 'short_name': t_short, 'color': t_color, 'group_name': t_group, 'group': t.get('group') or chr(65 + (idx % num_groups))})
+            created_teams.append({'id': t_id, 'name': t_name, 'short_name': t_short, 'color': t_color, 'group_name': t_group, 'group': t_grp_letter})
             
         # Fixtures from client or generator
         client_fixtures = tournament_data.get('fixtures')

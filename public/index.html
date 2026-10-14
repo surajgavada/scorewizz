@@ -1327,36 +1327,58 @@
                   <p class="muted">Divide teams into groups. Teams play round-robin matches in their group, and top qualified teams from each group play each other in the finals!</p>
 
                   <div class="form-group mt-3" id="wizGroupsConfig" style="display: none; margin-bottom: 0;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                      <div>
-                        <label style="font-weight: 700; color: var(--ink); font-size: 13px;">How many groups?</label>
-                        <select id="wizNumGroups" class="form-control" style="background: var(--bg-card); margin-top: 4px;">
-                          <option value="2" selected>2 Groups (Group A & Group B)</option>
-                          <option value="3">3 Groups (Group A, B, C)</option>
-                          <option value="4">4 Groups (Group A, B, C, D)</option>
-                        </select>
+                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 12px;">
+                      
+                      <!-- QUESTION 1: HOW MANY GROUPS? -->
+                      <div style="margin-bottom: 16px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+                          <label style="font-weight: 800; color: var(--ink); font-size: 13px;">1. How many groups do you want to create?</label>
+                          <button type="button" class="btn btn-xs btn-outline" id="wizOpenGroupsModalBtn" style="font-size: 11px;">Ask in Dialog &rarr;</button>
+                        </div>
+                        <div id="wizGroupNumPills" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
+                          <button type="button" class="btn btn-xs btn-outline wiz-grp-pill active" data-groups="2">2 Groups</button>
+                          <button type="button" class="btn btn-xs btn-outline wiz-grp-pill" data-groups="3">3 Groups</button>
+                          <button type="button" class="btn btn-xs btn-outline wiz-grp-pill" data-groups="4">4 Groups</button>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                          <select id="wizNumGroups" class="form-control" style="background: var(--bg-card); flex: 1;">
+                            <option value="2" selected>2 Groups (Group A & Group B)</option>
+                            <option value="3">3 Groups (Group A, B, C)</option>
+                            <option value="4">4 Groups (Group A, B, C, D)</option>
+                          </select>
+                        </div>
                       </div>
-                      <div>
-                        <label style="font-weight: 700; color: var(--ink); font-size: 13px;">Teams qualifying per group:</label>
-                        <select id="wizQualifiersPerGroup" class="form-control" style="background: var(--bg-card); margin-top: 4px;">
+
+                      <!-- QUESTION 2: HOW MANY QUALIFY FROM EACH GROUP? -->
+                      <div style="margin-bottom: 16px;">
+                        <label style="font-weight: 800; color: var(--ink); font-size: 13px; display: block; margin-bottom: 6px;">2. How many teams qualify from each group to playoffs?</label>
+                        <div id="wizGroupQualPills" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
+                          <button type="button" class="btn btn-xs btn-outline wiz-qual-pill active" data-qual="1">Top 1 (Group Winner)</button>
+                          <button type="button" class="btn btn-xs btn-outline wiz-qual-pill" data-qual="2">Top 2 (Top 2 Teams)</button>
+                        </div>
+                        <select id="wizQualifiersPerGroup" class="form-control" style="background: var(--bg-card);">
                           <option value="1" selected>Top 1 Team (Winner of each group)</option>
                           <option value="2">Top 2 Teams (Top 2 from each group)</option>
                         </select>
                       </div>
-                    </div>
 
-                    <!-- Groups Preview Box -->
-                    <div id="wizGroupsPreviewArea" style="background: var(--bg-card); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); margin-bottom: 10px;">
-                      <!-- Dynamic group cards rendered here -->
-                    </div>
+                      <!-- Groups Preview Box -->
+                      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                        <span style="font-weight: 700; font-size: 12px; color: var(--ink);">Group Division & Team Assignments:</span>
+                        <button type="button" class="btn btn-xs btn-ghost" id="wizShuffleGroupsBtn" style="font-size: 11px;" title="Redistribute teams evenly across groups">Shuffle / Rebalance</button>
+                      </div>
+                      <div id="wizGroupsPreviewArea" style="background: var(--bg-card); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); margin-bottom: 10px;">
+                        <!-- Dynamic group cards rendered here -->
+                      </div>
 
-                    <div style="font-size: 12px; color: var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
-                      <span id="wizGroupsCalculatedNote">Group matches + Playoffs</span>
-                      <button type="button" class="btn btn-xs btn-outline" id="wizToggleGroupsGraphBtn" style="font-size: 11px;">View Playoff Bracket</button>
-                    </div>
+                      <div style="font-size: 12px; color: var(--gold); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                        <span id="wizGroupsCalculatedNote">Group matches + Playoffs</span>
+                        <button type="button" class="btn btn-xs btn-outline" id="wizToggleGroupsGraphBtn" style="font-size: 11px;">View Playoff Bracket</button>
+                      </div>
 
-                    <div id="wizGroupsGraphPreview" style="display: none; margin-top: 10px; background: var(--bg-card); padding: 14px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); overflow-x: auto;">
-                      <!-- Dynamically rendered bracket tree for playoffs -->
+                      <div id="wizGroupsGraphPreview" style="display: none; margin-top: 10px; background: var(--bg-card); padding: 14px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); overflow-x: auto;">
+                        <!-- Dynamically rendered bracket tree for playoffs -->
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1931,6 +1953,78 @@
         <div class="modal-footer" style="justify-content: flex-end; gap: 8px;">
           <button class="btn btn-ghost" id="cancelWalkoverBtn">Cancel</button>
           <button class="btn btn-primary" id="confirmWalkoverBtn" style="font-weight: 700; background: #047857; border-color: #047857;">Confirm Walkover Win</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 10. GROUPS SETUP MODAL (Explicit question during groups creation) -->
+    <div class="modal-backdrop" id="groupsConfigModal">
+      <div class="modal-card" style="max-width: 520px;">
+        <div class="modal-header">
+          <div>
+            <span class="competition">WORLD CUP TOURNAMENT FORMAT</span>
+            <h3 style="font-size: 18px; margin-top: 4px;">Set Up Tournament Groups</h3>
+          </div>
+          <button class="modal-close" id="closeGroupsConfigModalBtn" title="Close">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 16px 0;">
+          <div style="background: rgba(237, 106, 78, 0.08); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 16px;">
+            <div style="font-size: 13px; color: var(--ink);">
+              <span id="groupsModalTeamCountInfo" style="font-weight: 700; color: var(--gold);">4 Teams</span> registered. Teams play round-robin matches within their group, and top qualified teams advance to the playoff knockouts.
+            </div>
+          </div>
+
+          <!-- QUESTION 1: HOW MANY GROUPS? -->
+          <div class="form-group mb-3">
+            <label style="font-weight: 800; font-size: 14px; color: var(--ink); display: block; margin-bottom: 8px;">
+              1. How many groups do you want to create?
+            </label>
+            <div id="groupsModalNumPills" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+              <button type="button" class="btn btn-sm btn-outline group-num-pill active" data-groups="2">2 Groups</button>
+              <button type="button" class="btn btn-sm btn-outline group-num-pill" data-groups="3">3 Groups</button>
+              <button type="button" class="btn btn-sm btn-outline group-num-pill" data-groups="4">4 Groups</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 12px; color: var(--ink-muted);">Groups count:</span>
+              <select id="groupsModalNumSelect" class="form-control" style="max-width: 180px;">
+                <option value="2" selected>2 Groups (A & B)</option>
+                <option value="3">3 Groups (A, B, C)</option>
+                <option value="4">4 Groups (A, B, C, D)</option>
+              </select>
+            </div>
+            <div id="groupsModalTeamsPerGroupNote" style="font-size: 12px; color: var(--sky); margin-top: 6px;">
+              2 teams per group
+            </div>
+          </div>
+
+          <!-- QUESTION 2: HOW MANY QUALIFY FROM EACH GROUP? -->
+          <div class="form-group mb-3">
+            <label style="font-weight: 800; font-size: 14px; color: var(--ink); display: block; margin-bottom: 8px;">
+              2. How many teams qualify from each group to playoffs?
+            </label>
+            <div id="groupsModalQualPills" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+              <button type="button" class="btn btn-sm btn-outline group-qual-pill active" data-qual="1">Top 1 Team (Winner)</button>
+              <button type="button" class="btn btn-sm btn-outline group-qual-pill" data-qual="2">Top 2 Teams (Top 2)</button>
+            </div>
+            <div id="groupsModalPlayoffStructureNote" style="font-size: 12px; color: var(--gold); margin-top: 4px;">
+              Playoff format: Grand Final
+            </div>
+          </div>
+
+          <!-- PREVIEW IN MODAL -->
+          <div class="form-group mb-2">
+            <label style="font-weight: 700; font-size: 12px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">
+              Group Draw Preview:
+            </label>
+            <div id="groupsModalPreviewBox" style="background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px; max-height: 160px; overflow-y: auto;">
+              <!-- Dynamic groups rendered here -->
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="justify-content: flex-end; gap: 8px;">
+          <button type="button" class="btn btn-ghost" id="cancelGroupsConfigModalBtn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="confirmGroupsConfigModalBtn" style="font-weight: 700;">Confirm & Build Groups</button>
         </div>
       </div>
     </div>
