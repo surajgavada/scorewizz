@@ -1324,11 +1324,29 @@
                 <input type="radio" name="scheduleType" value="groups" />
                 <div class="opt-content">
                   <strong>World Cup Format (Group Stage + Playoff Knockouts)</strong>
-                  <p class="muted">Divide teams into groups. Teams play round-robin matches in their group, and top qualified teams from each group play each other in the finals!</p>
+                  <p class="muted">Divide teams into groups (automatically or manually). Teams play round-robin matches in their group, and top qualified teams from each group play each other in the finals!</p>
 
                   <div class="form-group mt-3" id="wizGroupsConfig" style="display: none; margin-bottom: 0;">
                     <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 12px;">
                       
+                      <!-- OPTION: GROUP ASSIGNMENT METHOD (Auto vs Manual) -->
+                      <div style="margin-bottom: 16px; background: rgba(0,0,0,0.18); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px;">
+                        <label style="font-weight: 800; color: var(--gold); font-size: 13px; display: block; margin-bottom: 6px;">
+                          Group Assignment Method:
+                        </label>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
+                          <button type="button" class="btn btn-xs btn-outline wiz-grp-mode-pill active" id="wizGrpModeAuto" data-mode="auto">
+                            ⚡ Auto Distribute (Balanced Draw)
+                          </button>
+                          <button type="button" class="btn btn-xs btn-outline wiz-grp-mode-pill" id="wizGrpModeManual" data-mode="manual">
+                            ✍️ Manually Create Groups & Assign Each Team
+                          </button>
+                        </div>
+                        <p class="muted" id="wizGrpModeDesc" style="font-size: 11px; margin: 4px 0 0 0;">
+                          Automatically split teams evenly across groups.
+                        </p>
+                      </div>
+
                       <!-- QUESTION 1: HOW MANY GROUPS? -->
                       <div style="margin-bottom: 16px;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
@@ -1362,9 +1380,35 @@
                         </select>
                       </div>
 
+                      <!-- MANUAL GROUPS ACTIONS TOOLBAR (Shown in Manual Mode) -->
+                      <div id="wizManualGroupsToolbar" style="display: none; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 6px; background: rgba(0,0,0,0.18); padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line);">
+                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                          <span style="font-weight: 700; font-size: 11px; color: var(--gold);">Manual Actions:</span>
+                          <button type="button" class="btn btn-xs btn-outline" id="wizManualAddGroupBtn" title="Add another group">＋ Add Group</button>
+                          <button type="button" class="btn btn-xs btn-outline" id="wizManualRemoveGroupBtn" title="Remove the last group">－ Remove Group</button>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                          <button type="button" class="btn btn-xs btn-ghost" id="wizManualAutoFillBtn" title="Auto-assign remaining unassigned teams evenly">⚡ Auto-fill Remaining</button>
+                          <button type="button" class="btn btn-xs btn-ghost" id="wizManualClearAllBtn" style="color: var(--coral);" title="Unassign all teams from groups">🗑️ Clear All Groups</button>
+                        </div>
+                      </div>
+
+                      <!-- UNASSIGNED TEAMS TRAY (Shown in Manual Mode when there are unassigned teams) -->
+                      <div id="wizUnassignedTeamsTray" style="display: none; margin-bottom: 12px; background: rgba(237, 106, 78, 0.08); border: 1px dashed var(--coral); border-radius: var(--radius-sm); padding: 10px 12px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
+                          <strong style="font-size: 12px; color: var(--coral);">
+                            ⚠️ Unassigned Teams (<span id="wizUnassignedCount">0</span> remaining)
+                          </strong>
+                          <span style="font-size: 11px; color: var(--ink-muted);">Click a group below to add team into that group:</span>
+                        </div>
+                        <div id="wizUnassignedTeamsList" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                          <!-- Dynamic unassigned team pills rendered here -->
+                        </div>
+                      </div>
+
                       <!-- Groups Preview Box -->
                       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                        <span style="font-weight: 700; font-size: 12px; color: var(--ink);">Group Division & Team Assignments:</span>
+                        <span style="font-weight: 700; font-size: 12px; color: var(--ink);" id="wizGroupsAreaHeading">Group Division & Team Assignments:</span>
                         <button type="button" class="btn btn-xs btn-ghost" id="wizShuffleGroupsBtn" style="font-size: 11px;" title="Redistribute teams evenly across groups">Shuffle / Rebalance</button>
                       </div>
                       <div id="wizGroupsPreviewArea" style="background: var(--bg-card); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); margin-bottom: 10px;">
@@ -1974,6 +2018,24 @@
             </div>
           </div>
 
+          <!-- QUESTION: TEAM ASSIGNMENT METHOD -->
+          <div class="form-group mb-3">
+            <label style="font-weight: 800; font-size: 14px; color: var(--ink); display: block; margin-bottom: 8px;">
+              Team Assignment Method:
+            </label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-sm btn-outline group-mode-pill active" id="modalGrpModeAuto" data-mode="auto">
+                ⚡ Auto Distribute (Balanced Draw)
+              </button>
+              <button type="button" class="btn btn-sm btn-outline group-mode-pill" id="modalGrpModeManual" data-mode="manual">
+                ✍️ Manually Assign Teams
+              </button>
+            </div>
+            <div id="modalGrpModeDesc" style="font-size: 12px; color: var(--sky); margin-top: 5px;">
+              Automatically distribute registered teams evenly across groups.
+            </div>
+          </div>
+
           <!-- QUESTION 1: HOW MANY GROUPS? -->
           <div class="form-group mb-3">
             <label style="font-weight: 800; font-size: 14px; color: var(--ink); display: block; margin-bottom: 8px;">
@@ -2032,11 +2094,11 @@
     <!-- TOAST NOTIFICATION -->
     <div id="toast" class="toast" role="status"></div>
 
-    <script src="app.js?v=40"></script>
+    <script src="app.js?v=41"></script>
     <script>
       // Register Service Worker with immediate update and automatic fresh load
       if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
-        navigator.serviceWorker.register('sw.js?v=40').then((reg) => {
+        navigator.serviceWorker.register('sw.js?v=41').then((reg) => {
           reg.update();
           reg.onupdatefound = () => {
             const installing = reg.installing;

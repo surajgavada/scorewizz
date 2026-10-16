@@ -4889,6 +4889,124 @@ function setupEventListeners() {
     };
   });
 
+  // Wizard Step 4 Group Assignment Mode (Auto vs Manual)
+  const grpModeAuto = document.querySelector('#wizGrpModeAuto');
+  const grpModeManual = document.querySelector('#wizGrpModeManual');
+  const grpModeDesc = document.querySelector('#wizGrpModeDesc');
+
+  function setWizardGroupMode(mode) {
+    if (!appState.wizardData) appState.wizardData = {};
+    appState.wizardData.groupAssignmentMode = mode;
+    if (grpModeAuto) grpModeAuto.classList.toggle('active', mode === 'auto');
+    if (grpModeManual) grpModeManual.classList.toggle('active', mode === 'manual');
+
+    const numGroups = Number(document.querySelector('#wizNumGroups')?.value) || 2;
+    if (mode === 'auto') {
+      if (grpModeDesc) grpModeDesc.textContent = 'Automatically split teams evenly across groups.';
+      if (appState.wizardData.teams) {
+        appState.wizardData.teams.forEach((t, i) => {
+          t.group = String.fromCharCode(65 + (i % numGroups));
+          t.group_name = `Group ${t.group}`;
+        });
+      }
+    } else {
+      if (grpModeDesc) grpModeDesc.textContent = 'Manually create groups, assign each team to specific groups, or add/remove groups.';
+    }
+    updateWizardGroupsPreview();
+  }
+
+  if (grpModeAuto) grpModeAuto.onclick = () => setWizardGroupMode('auto');
+  if (grpModeManual) grpModeManual.onclick = () => setWizardGroupMode('manual');
+
+  // Manual Groups Toolbar Listeners
+  const manualAddGroupBtn = document.querySelector('#wizManualAddGroupBtn');
+  if (manualAddGroupBtn) {
+    manualAddGroupBtn.onclick = () => {
+      const sel = document.querySelector('#wizNumGroups');
+      const teamsCount = (appState.wizardData.teams || []).length;
+      const maxGroups = Math.max(2, Math.min(teamsCount || 4, 8));
+      const current = Number(sel?.value) || 2;
+      if (current >= maxGroups) {
+        showToast(`Maximum ${maxGroups} groups for ${teamsCount} teams.`);
+        return;
+      }
+      const next = current + 1;
+      if (sel) sel.value = String(next);
+      document.querySelectorAll('.wiz-grp-pill').forEach((b) => {
+        b.classList.toggle('active', Number(b.dataset.groups) === next);
+      });
+      updateWizardGroupsPreview();
+      showToast(`Group ${String.fromCharCode(65 + next - 1)} added!`);
+    };
+  }
+
+  const manualRemoveGroupBtn = document.querySelector('#wizManualRemoveGroupBtn');
+  if (manualRemoveGroupBtn) {
+    manualRemoveGroupBtn.onclick = () => {
+      const sel = document.querySelector('#wizNumGroups');
+      const current = Number(sel?.value) || 2;
+      if (current <= 2) {
+        showToast('Minimum 2 groups are required.');
+        return;
+      }
+      const next = current - 1;
+      const removedLetter = String.fromCharCode(65 + next);
+      if (sel) sel.value = String(next);
+      document.querySelectorAll('.wiz-grp-pill').forEach((b) => {
+        b.classList.toggle('active', Number(b.dataset.groups) === next);
+      });
+      if (appState.wizardData.teams) {
+        appState.wizardData.teams.forEach((t) => {
+          if (t.group === removedLetter) {
+            t.group = null;
+            t.group_name = null;
+          }
+        });
+      }
+      updateWizardGroupsPreview();
+      showToast(`Group ${removedLetter} removed. Any teams in it are now unassigned.`);
+    };
+  }
+
+  const manualClearAllBtn = document.querySelector('#wizManualClearAllBtn');
+  if (manualClearAllBtn) {
+    manualClearAllBtn.onclick = () => {
+      if (appState.wizardData.teams) {
+        appState.wizardData.teams.forEach((t) => {
+          t.group = null;
+          t.group_name = null;
+        });
+      }
+      updateWizardGroupsPreview();
+      showToast('All groups cleared. Add teams to groups below!');
+    };
+  }
+
+  const manualAutoFillBtn = document.querySelector('#wizManualAutoFillBtn');
+  if (manualAutoFillBtn) {
+    manualAutoFillBtn.onclick = () => {
+      const teams = appState.wizardData.teams || [];
+      const numGroups = Number(document.querySelector('#wizNumGroups')?.value) || 2;
+      const unassigned = teams.filter((t) => !t.group);
+      if (unassigned.length === 0) {
+        showToast('All teams are already assigned!');
+        return;
+      }
+      const counts = Array.from({ length: numGroups }, (_, g) => ({
+        letter: String.fromCharCode(65 + g),
+        count: teams.filter((t) => t.group === String.fromCharCode(65 + g)).length
+      }));
+      unassigned.forEach((t) => {
+        counts.sort((a, b) => a.count - b.count);
+        t.group = counts[0].letter;
+        t.group_name = `Group ${counts[0].letter}`;
+        counts[0].count++;
+      });
+      updateWizardGroupsPreview();
+      showToast('Remaining unassigned teams auto-filled evenly!');
+    };
+  }
+
   const wizNumGroupsSelect = document.querySelector('#wizNumGroups');
   if (wizNumGroupsSelect) {
     wizNumGroupsSelect.onchange = () => {
@@ -4897,10 +5015,19 @@ function setupEventListeners() {
         b.classList.toggle('active', Number(b.dataset.groups) === val);
       });
       if (appState.wizardData.teams) {
-        appState.wizardData.teams.forEach((t, i) => {
-          t.group = String.fromCharCode(65 + (i % val));
-          t.group_name = `Group ${t.group}`;
-        });
+        if (appState.wizardData.groupAssignmentMode === 'manual') {
+          appState.wizardData.teams.forEach((t) => {
+            if (t.group && (t.group.charCodeAt(0) - 65) >= val) {
+              t.group = null;
+              t.group_name = null;
+            }
+          });
+        } else {
+          appState.wizardData.teams.forEach((t, i) => {
+            t.group = String.fromCharCode(65 + (i % val));
+            t.group_name = `Group ${t.group}`;
+          });
+        }
       }
       updateWizardGroupsPreview();
     };
@@ -4926,10 +5053,19 @@ function setupEventListeners() {
       const sel = document.querySelector('#wizNumGroups');
       if (sel) sel.value = String(val);
       if (appState.wizardData.teams) {
-        appState.wizardData.teams.forEach((t, i) => {
-          t.group = String.fromCharCode(65 + (i % val));
-          t.group_name = `Group ${t.group}`;
-        });
+        if (appState.wizardData.groupAssignmentMode === 'manual') {
+          appState.wizardData.teams.forEach((t) => {
+            if (t.group && (t.group.charCodeAt(0) - 65) >= val) {
+              t.group = null;
+              t.group_name = null;
+            }
+          });
+        } else {
+          appState.wizardData.teams.forEach((t, i) => {
+            t.group = String.fromCharCode(65 + (i % val));
+            t.group_name = `Group ${t.group}`;
+          });
+        }
       }
       updateWizardGroupsPreview();
     };
@@ -4983,6 +5119,7 @@ function setupEventListeners() {
   const confirmGroupsBtn = document.querySelector('#confirmGroupsConfigModalBtn');
   if (confirmGroupsBtn) {
     confirmGroupsBtn.onclick = () => {
+      const isManual = window.groupsModalMode === 'manual';
       const numSelect = document.querySelector('#groupsModalNumSelect');
       const numGroups = Number(numSelect?.value) || 2;
       const activeQualPill = document.querySelector('.group-qual-pill.active');
@@ -5000,7 +5137,13 @@ function setupEventListeners() {
         b.classList.toggle('active', Number(b.dataset.qual) === qualifiers);
       });
 
-      if (appState.wizardData.teams) {
+      appState.wizardData.groupAssignmentMode = isManual ? 'manual' : 'auto';
+      const grpModeAuto = document.querySelector('#wizGrpModeAuto');
+      const grpModeManual = document.querySelector('#wizGrpModeManual');
+      if (grpModeAuto) grpModeAuto.classList.toggle('active', !isManual);
+      if (grpModeManual) grpModeManual.classList.toggle('active', isManual);
+
+      if (!isManual && appState.wizardData.teams) {
         appState.wizardData.teams.forEach((t, i) => {
           t.group = String.fromCharCode(65 + (i % numGroups));
           t.group_name = `Group ${t.group}`;
@@ -5009,7 +5152,7 @@ function setupEventListeners() {
 
       updateWizardGroupsPreview();
       closeGroupsConfigModal();
-      showToast(`Tournament groups configured: ${numGroups} groups, top ${qualifiers} advance!`);
+      showToast(isManual ? `Tournament groups configured manually!` : `Tournament groups configured: ${numGroups} groups, top ${qualifiers} advance!`);
     };
   }
 
@@ -5374,6 +5517,26 @@ window.openGroupsConfigModal = function () {
     teamCountInfo.textContent = `${teams.length} Teams`;
   }
 
+  window.groupsModalMode = appState.wizardData.groupAssignmentMode || 'auto';
+  const modalGrpModeAuto = document.querySelector('#modalGrpModeAuto');
+  const modalGrpModeManual = document.querySelector('#modalGrpModeManual');
+  const modalGrpModeDesc = document.querySelector('#modalGrpModeDesc');
+
+  function setModalGroupMode(mode) {
+    window.groupsModalMode = mode;
+    if (modalGrpModeAuto) modalGrpModeAuto.classList.toggle('active', mode === 'auto');
+    if (modalGrpModeManual) modalGrpModeManual.classList.toggle('active', mode === 'manual');
+    if (modalGrpModeDesc) {
+      modalGrpModeDesc.textContent = mode === 'auto'
+        ? 'Automatically distribute registered teams evenly across groups.'
+        : 'Manually choose which group each team belongs to.';
+    }
+    updateGroupsModalPreview();
+  }
+
+  if (modalGrpModeAuto) modalGrpModeAuto.onclick = () => setModalGroupMode('auto');
+  if (modalGrpModeManual) modalGrpModeManual.onclick = () => setModalGroupMode('manual');
+
   const numSelect = document.querySelector('#groupsModalNumSelect');
   const pillsContainer = document.querySelector('#groupsModalNumPills');
   const wizNumGroups = document.querySelector('#wizNumGroups');
@@ -5433,7 +5596,7 @@ window.openGroupsConfigModal = function () {
     };
   }
 
-  updateGroupsModalPreview();
+  setModalGroupMode(window.groupsModalMode);
   modal.classList.add('show');
 };
 
@@ -5443,6 +5606,7 @@ window.closeGroupsConfigModal = function () {
 };
 
 function updateGroupsModalPreview() {
+  const isManual = window.groupsModalMode === 'manual';
   const numSelect = document.querySelector('#groupsModalNumSelect');
   const numGroups = Number(numSelect?.value) || 2;
   const activeQualPill = document.querySelector('.group-qual-pill.active');
@@ -5451,8 +5615,12 @@ function updateGroupsModalPreview() {
 
   const teamsPerGroupNote = document.querySelector('#groupsModalTeamsPerGroupNote');
   if (teamsPerGroupNote) {
-    const avg = teams.length > 0 ? (teams.length / numGroups).toFixed(1).replace('.0', '') : '2';
-    teamsPerGroupNote.textContent = `~${avg} teams per group (${teams.length} teams divided into ${numGroups} groups)`;
+    if (isManual) {
+      teamsPerGroupNote.textContent = `Assign each of the ${teams.length} teams to one of the ${numGroups} groups below:`;
+    } else {
+      const avg = teams.length > 0 ? (teams.length / numGroups).toFixed(1).replace('.0', '') : '2';
+      teamsPerGroupNote.textContent = `~${avg} teams per group (${teams.length} teams divided into ${numGroups} groups)`;
+    }
   }
 
   const playoffNote = document.querySelector('#groupsModalPlayoffStructureNote');
@@ -5475,13 +5643,53 @@ function updateGroupsModalPreview() {
   }
 
   const previewBox = document.querySelector('#groupsModalPreviewBox');
-  if (previewBox) {
-    const groups = Array.from({ length: numGroups }, (_, i) => ({
-      name: `Group ${String.fromCharCode(65 + i)}`,
-      letter: String.fromCharCode(65 + i),
-      teams: []
-    }));
+  if (!previewBox) return;
 
+  const groups = Array.from({ length: numGroups }, (_, i) => ({
+    name: `Group ${String.fromCharCode(65 + i)}`,
+    letter: String.fromCharCode(65 + i),
+    teams: []
+  }));
+
+  if (isManual) {
+    // Render manual assignment select for each team
+    let html = `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+    teams.forEach((t, i) => {
+      let currentG = t.group;
+      if (currentG && (currentG.charCodeAt(0) - 65) >= numGroups) currentG = null;
+      html += `
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: var(--radius-xs); border: 1px solid var(--line);">
+          <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; min-width: 0;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${t.color || '#ed6a4e'}; flex-shrink: 0;"></span>
+            <span style="font-weight: 600; color: var(--ink);">${t.name}</span>
+          </div>
+          <select class="form-control groups-modal-team-select" data-team-index="${i}" style="width: 130px; font-size: 11px; height: 26px; padding: 2px 6px;">
+            <option value="none" ${!currentG ? 'selected' : ''}>-- Unassigned --</option>
+            ${groups.map(g => `<option value="${g.letter}" ${currentG === g.letter ? 'selected' : ''}>${g.name}</option>`).join('')}
+          </select>
+        </div>
+      `;
+    });
+    html += `</div>`;
+    previewBox.innerHTML = html;
+
+    previewBox.querySelectorAll('.groups-modal-team-select').forEach((sel) => {
+      sel.onchange = (e) => {
+        const idx = Number(sel.dataset.teamIndex);
+        if (teams[idx]) {
+          const val = e.target.value;
+          if (val === 'none') {
+            teams[idx].group = null;
+            teams[idx].group_name = null;
+          } else {
+            teams[idx].group = val;
+            teams[idx].group_name = `Group ${val}`;
+          }
+        }
+      };
+    });
+  } else {
+    // Auto preview
     teams.forEach((t, i) => {
       groups[i % numGroups].teams.push(t);
     });
@@ -5988,11 +6196,28 @@ function updateWizardGroupsPreview() {
   const noteEl = document.querySelector('#wizGroupsCalculatedNote');
   const numGroupsSelect = document.querySelector('#wizNumGroups');
   const qualifiersSelect = document.querySelector('#wizQualifiersPerGroup');
+  const unassignedTray = document.querySelector('#wizUnassignedTeamsTray');
+  const unassignedList = document.querySelector('#wizUnassignedTeamsList');
+  const unassignedCountEl = document.querySelector('#wizUnassignedCount');
+  const manualToolbar = document.querySelector('#wizManualGroupsToolbar');
+  const shuffleBtn = document.querySelector('#wizShuffleGroupsBtn');
+  const areaHeading = document.querySelector('#wizGroupsAreaHeading');
+
   if (!previewArea || !numGroupsSelect) return;
 
+  const isManual = appState.wizardData.groupAssignmentMode === 'manual';
   const numGroups = Number(numGroupsSelect.value) || 2;
   const qualifiersPerGroup = Number(qualifiersSelect?.value) || 1;
   const teams = appState.wizardData.teams || [];
+
+  // Toggle toolbar & shuffle button & heading
+  if (manualToolbar) manualToolbar.style.display = isManual ? 'flex' : 'none';
+  if (shuffleBtn) shuffleBtn.style.display = isManual ? 'none' : 'inline-flex';
+  if (areaHeading) areaHeading.textContent = isManual ? 'Manual Group Setup & Team Placement:' : 'Group Division & Team Assignments:';
+
+  // Sync mode pill buttons
+  document.querySelector('#wizGrpModeAuto')?.classList.toggle('active', !isManual);
+  document.querySelector('#wizGrpModeManual')?.classList.toggle('active', isManual);
 
   // Sync wiz quick-pills active status
   document.querySelectorAll('.wiz-grp-pill').forEach((b) => {
@@ -6008,24 +6233,225 @@ function updateWizardGroupsPreview() {
     teams: []
   }));
 
+  const unassignedTeams = [];
+
   teams.forEach((t, i) => {
-    let gIdx = i % numGroups;
-    if (t.group && typeof t.group === 'string') {
-      const code = t.group.charCodeAt(0) - 65;
-      if (code >= 0 && code < numGroups) {
-        gIdx = code;
+    if (isManual) {
+      if (t.group && typeof t.group === 'string') {
+        const code = t.group.charCodeAt(0) - 65;
+        if (code >= 0 && code < numGroups) {
+          groups[code].teams.push({ team: t, originalIndex: i });
+          return;
+        }
       }
+      // Team is unassigned in manual mode
+      t.group = null;
+      t.group_name = null;
+      unassignedTeams.push({ team: t, originalIndex: i });
+    } else {
+      // Auto mode: modulo distribute
+      let gIdx = i % numGroups;
+      if (t.group && typeof t.group === 'string') {
+        const code = t.group.charCodeAt(0) - 65;
+        if (code >= 0 && code < numGroups) {
+          gIdx = code;
+        }
+      }
+      const gLetter = String.fromCharCode(65 + gIdx);
+      t.group = gLetter;
+      t.group_name = `Group ${gLetter}`;
+      groups[gIdx].teams.push({ team: t, originalIndex: i });
     }
-    const gLetter = String.fromCharCode(65 + gIdx);
-    t.group = gLetter;
-    t.group_name = `Group ${gLetter}`;
-    groups[gIdx].teams.push({ team: t, originalIndex: i });
   });
 
+  // Handle Unassigned Tray in Manual mode
+  if (unassignedTray && unassignedList) {
+    if (isManual && unassignedTeams.length > 0) {
+      unassignedTray.style.display = 'block';
+      if (unassignedCountEl) unassignedCountEl.textContent = String(unassignedTeams.length);
+
+      let uHtml = '';
+      unassignedTeams.forEach(({ team: t, originalIndex: teamIdx }) => {
+        let quickButtons = '';
+        groups.forEach((g) => {
+          quickButtons += `<button type="button" class="btn btn-xs btn-outline wiz-quick-assign-btn" data-team-index="${teamIdx}" data-group-letter="${g.letter}" style="padding: 2px 7px; font-size: 10px; font-weight: 700;">+ ${g.name}</button>`;
+        });
+
+        uHtml += `
+          <div class="wiz-unassigned-pill">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${t.color || '#ed6a4e'};"></span>
+            <span style="font-size: 12px; font-weight: 700; color: var(--ink);">${t.name}</span>
+            <div style="display: flex; gap: 4px; margin-left: 4px;">
+              ${quickButtons}
+            </div>
+          </div>
+        `;
+      });
+      unassignedList.innerHTML = uHtml;
+
+      // Attach quick assign handlers
+      unassignedList.querySelectorAll('.wiz-quick-assign-btn').forEach((btn) => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const tIdx = Number(btn.dataset.teamIndex);
+          const gLetter = btn.dataset.groupLetter;
+          if (teams[tIdx]) {
+            teams[tIdx].group = gLetter;
+            teams[tIdx].group_name = `Group ${gLetter}`;
+            updateWizardGroupsPreview();
+            showToast(`${teams[tIdx].name} added to Group ${gLetter}!`);
+          }
+        };
+      });
+    } else {
+      unassignedTray.style.display = 'none';
+    }
+  }
+
+  // Render Group Cards in Preview Area
+  let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">`;
+  groups.forEach((g) => {
+    html += `
+      <div class="wiz-manual-group-card">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px;">
+          <strong style="font-size: 13px; color: var(--gold);">${g.name}</strong>
+          <span class="badge" style="font-size: 10px;">${g.teams.length} ${g.teams.length === 1 ? 'team' : 'teams'}</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+    `;
+
+    if (g.teams.length === 0) {
+      html += `
+        <div style="text-align: center; color: var(--ink-muted); font-size: 11px; padding: 14px 6px; border: 1px dashed rgba(255,255,255,0.1); border-radius: var(--radius-xs); margin-bottom: 6px;">
+          No teams in ${g.name} yet.<br><span style="font-size: 10px; opacity: 0.75;">Add a team below or from above</span>
+        </div>
+      `;
+    } else {
+      g.teams.forEach(({ team: t, originalIndex: teamIdx }) => {
+        if (isManual) {
+          const moveOptions = groups.map((grp) => `<option value="${grp.letter}" ${grp.letter === t.group ? 'selected' : ''}>${grp.name}</option>`).join('');
+          html += `
+            <div class="wiz-manual-team-row">
+              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; min-width: 0; flex: 1;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${t.color || '#ed6a4e'}; flex-shrink: 0;"></span>
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;">${t.name}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                <select class="form-control wiz-manual-reassign-select" data-team-index="${teamIdx}" style="padding: 1px 4px; font-size: 10px; height: 22px; width: 75px;" title="Move team to another group">
+                  ${moveOptions}
+                  <option value="none">✕ Unassign</option>
+                </select>
+                <button type="button" class="btn btn-xs btn-ghost wiz-manual-remove-btn" data-team-index="${teamIdx}" style="padding: 0 4px; color: var(--coral); font-size: 12px; font-weight: 700; line-height: 1;" title="Remove ${t.name} from ${g.name}">✕</button>
+              </div>
+            </div>
+          `;
+        } else {
+          // Auto mode: original select
+          const groupOptions = groups.map((grp) => `<option value="${grp.letter}" ${grp.letter === t.group ? 'selected' : ''}>${grp.name}</option>`).join('');
+          html += `
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--ink); background: rgba(0,0,0,0.15); padding: 4px 6px; border-radius: var(--radius-xs); border: 1px solid rgba(255,255,255,0.05);">
+              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; min-width: 0;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${t.color || '#ed6a4e'}; flex-shrink: 0;"></span>
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;">${t.name}</span>
+              </div>
+              <select class="form-control wiz-team-grp-select" data-team-index="${teamIdx}" style="padding: 1px 4px; font-size: 10px; height: 22px; width: 75px; flex-shrink: 0;" title="Change team group">
+                ${groupOptions}
+              </select>
+            </div>
+          `;
+        }
+      });
+    }
+
+    if (isManual) {
+      // Add team selector at bottom of each group
+      html += `
+        </div>
+        <div style="margin-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 6px;">
+          <select class="form-control wiz-manual-add-select" data-group-letter="${g.letter}" style="font-size: 11px; height: 25px; padding: 2px 6px; background: rgba(0,0,0,0.25);" ${unassignedTeams.length === 0 ? 'disabled' : ''}>
+            <option value="">${unassignedTeams.length === 0 ? '(All teams assigned)' : `＋ Add team to ${g.name}...`}</option>
+            ${unassignedTeams.map((u) => `<option value="${u.originalIndex}">＋ ${u.team.name}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      `;
+    } else {
+      html += `
+        </div>
+      </div>
+      `;
+    }
+  });
+  html += `</div>`;
+  previewArea.innerHTML = html;
+
+  // Re-assignment select handlers (Auto mode)
+  previewArea.querySelectorAll('.wiz-team-grp-select').forEach((sel) => {
+    sel.onchange = (e) => {
+      const idx = Number(e.target.dataset.teamIndex);
+      if (teams && teams[idx]) {
+        teams[idx].group = e.target.value;
+        teams[idx].group_name = `Group ${e.target.value}`;
+        updateWizardGroupsPreview();
+      }
+    };
+  });
+
+  // Manual re-assignment handlers (Manual mode)
+  previewArea.querySelectorAll('.wiz-manual-reassign-select').forEach((sel) => {
+    sel.onchange = (e) => {
+      const idx = Number(e.target.dataset.teamIndex);
+      if (teams && teams[idx]) {
+        if (e.target.value === 'none') {
+          teams[idx].group = null;
+          teams[idx].group_name = null;
+          showToast(`${teams[idx].name} moved to unassigned.`);
+        } else {
+          teams[idx].group = e.target.value;
+          teams[idx].group_name = `Group ${e.target.value}`;
+          showToast(`${teams[idx].name} moved to Group ${e.target.value}!`);
+        }
+        updateWizardGroupsPreview();
+      }
+    };
+  });
+
+  // Manual remove button handlers (Manual mode)
+  previewArea.querySelectorAll('.wiz-manual-remove-btn').forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.dataset.teamIndex);
+      if (teams && teams[idx]) {
+        const teamName = teams[idx].name;
+        teams[idx].group = null;
+        teams[idx].group_name = null;
+        updateWizardGroupsPreview();
+        showToast(`${teamName} removed from group.`);
+      }
+    };
+  });
+
+  // Manual add-to-group dropdown handlers (Manual mode)
+  previewArea.querySelectorAll('.wiz-manual-add-select').forEach((sel) => {
+    sel.onchange = (e) => {
+      const gLetter = sel.dataset.groupLetter;
+      const tIdx = Number(e.target.value);
+      if (e.target.value !== '' && teams && teams[tIdx]) {
+        teams[tIdx].group = gLetter;
+        teams[tIdx].group_name = `Group ${gLetter}`;
+        updateWizardGroupsPreview();
+        showToast(`${teams[tIdx].name} added to Group ${gLetter}!`);
+      }
+    };
+  });
+
+  // Match calculations & feedback
   let groupMatchesCount = 0;
+  let hasSmallGroup = false;
   groups.forEach((g) => {
     const m = g.teams.length;
     if (m >= 2) groupMatchesCount += (m * (m - 1)) / 2;
+    if (m < 2) hasSmallGroup = true;
   });
 
   let playoffMatchesCount = 1;
@@ -6038,58 +6464,24 @@ function updateWizardGroupsPreview() {
   else playoffMatchesCount = (numGroups * qualifiersPerGroup) - 1;
 
   if (noteEl) {
-    noteEl.innerHTML = `<strong>${groupMatchesCount + playoffMatchesCount} total matches</strong> (${groupMatchesCount} group round-robin + ${playoffMatchesCount} playoff knockouts)`;
+    if (isManual && unassignedTeams.length > 0) {
+      noteEl.innerHTML = `<span style="color: var(--coral); font-weight: 700;">⚠️ ${unassignedTeams.length} ${unassignedTeams.length === 1 ? 'team is' : 'teams are'} unassigned.</span> Add every team to a group to complete tournament fixtures.`;
+    } else if (hasSmallGroup) {
+      noteEl.innerHTML = `<span style="color: var(--gold); font-weight: 700;">⚠️ Every group needs at least 2 teams</span> to play round-robin matches.`;
+    } else {
+      noteEl.innerHTML = `<span style="color: #10b981; font-weight: 700;">✅ All ${teams.length} teams assigned!</span> <strong>${groupMatchesCount + playoffMatchesCount} total matches</strong> (${groupMatchesCount} group round-robin + ${playoffMatchesCount} playoff knockouts)`;
+    }
   }
-
-  let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;">`;
-  groups.forEach((g) => {
-    html += `
-      <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; border-bottom: 1px solid var(--line); padding-bottom: 4px;">
-          <strong style="font-size: 13px; color: var(--gold);">${g.name}</strong>
-          <span class="badge" style="font-size: 10px;">${g.teams.length} ${g.teams.length === 1 ? 'team' : 'teams'}</span>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-    `;
-    g.teams.forEach(({ team: t, originalIndex: teamIdx }) => {
-      const groupOptions = groups.map((grp) => `<option value="${grp.letter}" ${grp.letter === t.group ? 'selected' : ''}>${grp.name}</option>`).join('');
-      html += `
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--ink); background: rgba(0,0,0,0.15); padding: 4px 6px; border-radius: var(--radius-xs); border: 1px solid rgba(255,255,255,0.05);">
-          <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; min-width: 0;">
-            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${t.color || '#ed6a4e'}; flex-shrink: 0;"></span>
-            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;">${t.name}</span>
-          </div>
-          <select class="form-control wiz-team-grp-select" data-team-index="${teamIdx}" style="padding: 1px 4px; font-size: 10px; height: 22px; width: 75px; flex-shrink: 0;" title="Change team group">
-            ${groupOptions}
-          </select>
-        </div>
-      `;
-    });
-    html += `
-        </div>
-      </div>
-    `;
-  });
-  html += `</div>`;
-  previewArea.innerHTML = html;
-
-  // Re-assignment select handlers
-  previewArea.querySelectorAll('.wiz-team-grp-select').forEach((sel) => {
-    sel.onchange = (e) => {
-      const idx = Number(e.target.dataset.teamIndex);
-      if (appState.wizardData.teams && appState.wizardData.teams[idx]) {
-        appState.wizardData.teams[idx].group = e.target.value;
-        appState.wizardData.teams[idx].group_name = `Group ${e.target.value}`;
-        updateWizardGroupsPreview();
-      }
-    };
-  });
 
   const graphPreview = document.querySelector('#wizGroupsGraphPreview');
   if (graphPreview && graphPreview.style.display !== 'none') {
-    const previewFixtures = generateGroupsKnockoutSchedule(teams, 'tour_preview', numGroups, qualifiersPerGroup);
-    const playoffOnly = previewFixtures.filter((f) => f.is_playoff);
-    renderKnockoutBracketTree('#wizGroupsGraphPreview', playoffOnly, teams);
+    if (!hasSmallGroup && unassignedTeams.length === 0) {
+      const previewFixtures = generateGroupsKnockoutSchedule(teams, 'tour_preview', numGroups, qualifiersPerGroup);
+      const playoffOnly = previewFixtures.filter((f) => f.is_playoff);
+      renderKnockoutBracketTree('#wizGroupsGraphPreview', playoffOnly, teams);
+    } else {
+      graphPreview.innerHTML = '<div style="text-align: center; color: var(--ink-muted); font-size: 12px; padding: 12px;">Playoff bracket will display once all teams are assigned to groups (min 2 teams per group).</div>';
+    }
   }
 }
 
@@ -6211,6 +6603,23 @@ async function handleWizardLaunch() {
   let fixtures = [];
 
   if (scheduleType === 'groups') {
+    const isManual = appState.wizardData.groupAssignmentMode === 'manual';
+    if (isManual) {
+      const unassigned = appState.wizardData.teams.filter(t => !t.group || (t.group.charCodeAt(0) - 65) >= numGroups || (t.group.charCodeAt(0) - 65) < 0);
+      if (unassigned.length > 0) {
+        showToast(`Please assign all teams to a group before launching (${unassigned.length} teams unassigned).`);
+        return;
+      }
+      for (let g = 0; g < numGroups; g++) {
+        const gLetter = String.fromCharCode(65 + g);
+        const count = appState.wizardData.teams.filter(t => t.group === gLetter).length;
+        if (count < 2) {
+          showToast(`Group ${gLetter} needs at least 2 teams to schedule matches (currently has ${count}).`);
+          return;
+        }
+      }
+    }
+
     teams.forEach((t, i) => {
       const orig = appState.wizardData.teams[i];
       let gLetter = orig?.group;
