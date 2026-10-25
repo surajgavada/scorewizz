@@ -120,6 +120,15 @@ class ScoreWizzHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send_json(500, {'error': str(e)})
 
+        # API: Add new fixture mid-tournament
+        if path.startswith('/api/tournaments/') and path.endswith('/fixtures'):
+            tournament_id = path.split('/')[-2]
+            try:
+                fix_id = database.add_fixture_to_tournament(tournament_id, payload)
+                return self.send_json(201, {'success': True, 'fixture_id': fix_id})
+            except Exception as e:
+                return self.send_json(500, {'error': str(e)})
+
         self.send_json(404, {'error': 'Route not found'})
 
     def do_DELETE(self):

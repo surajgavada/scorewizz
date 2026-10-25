@@ -392,16 +392,17 @@ def generate_knockout_schedule(teams, tournament_id):
                 
     return final_fixtures
 
-def generate_groups_schedule(teams, tournament_id, num_groups=2, qualifiers_per_group=1):
+def generate_groups_schedule(teams, tournament_id, num_groups=2, qualifiers_per_group=1, manual_group_fixtures=None):
     """
     Generates World Cup style tournament schedule:
-    1. Single round-robin matches within each group.
+    1. Single round-robin or owner custom manual matches within each group.
     2. Knockout playoff matches (Final, or Semi-Finals + Final, or QFs + SFs + Final) between group qualifiers.
     """
     num_groups = max(2, min(16, int(num_groups)))
     qualifiers_per_group = max(1, min(2, int(qualifiers_per_group)))
     
     groups = [[] for _ in range(num_groups)]
+    team_by_id = {}
     for idx, t in enumerate(teams):
         g_idx = idx % num_groups
         if t.get('group') and isinstance(t['group'], str):
@@ -412,46 +413,91 @@ def generate_groups_schedule(teams, tournament_id, num_groups=2, qualifiers_per_
         t['group_name'] = f"Group {g_letter}"
         t['group'] = g_letter
         groups[g_idx].append(t)
+        team_by_id[t['id']] = t
         
     fixtures = []
     match_counter = 1
     
-    # 1. Group Stage Fixtures
-    for g_idx, g_teams in enumerate(groups):
-        g_letter = chr(65 + g_idx)
-        g_name = f"Group {g_letter}"
-        m = len(g_teams)
-        if m < 2:
-            continue
-        g_match_idx = 1
-        for i in range(m - 1):
-            for j in range(i + 1, m):
-                t1 = g_teams[i]
-                t2 = g_teams[j]
-                fix_id = f"fix_{tournament_id}_{match_counter}"
-                fixtures.append({
-                    'id': fix_id,
-                    'tournament_id': tournament_id,
-                    'match_number': match_counter,
-                    'team1_id': t1['id'],
-                    'team1_name': t1['name'],
-                    'team1_short': t1.get('short_name', t1['name'][:3].upper()),
-                    'team1_color': t1.get('color', '#ed6a4e'),
-                    'team2_id': t2['id'],
-                    'team2_name': t2['name'],
-                    'team2_short': t2.get('short_name', t2['name'][:3].upper()),
-                    'team2_color': t2.get('color', '#3b82f6'),
-                    'venue': f"Stadium Pitch {((match_counter - 1) % 4) + 1}",
-                    'match_date': f"{g_name} - Match {g_match_idx}",
-                    'stage': g_name,
-                    'group_name': g_name,
-                    'status': 'upcoming',
-                    'winner_team_id': None,
-                    'result_text': None,
-                    'is_playoff': False
-                })
-                match_counter += 1
-                g_match_idx += 1
+    # 1. Group Stage Fixtures (Owner-defined manual matchups or auto round-robin)
+    if manual_group_fixtures and len(manual_group_fixtures) > 0:
+        for idx, mf in enumerate(manual_group_fixtures):
+            t1 = team_by_id.get(mf.get('team1_id'))
+            if not t1 and 'team1Index' in mf and mf['team1Index'] < len(teams):
+                t1 = teams[mf['team1Index']]
+            if not t1 and 'team1_index' in mf and mf['team1_index'] < len(teams):
+                t1 = teams[mf['team1_index']]
+            if not t1:
+                t1 = teams[0]
+
+            t2 = team_by_id.get(mf.get('team2_id'))
+            if not t2 and 'team2Index' in mf and mf['team2Index'] < len(teams):
+                t2 = teams[mf['team2Index']]
+            if not t2 and 'team2_index' in mf and mf['team2_index'] < len(teams):
+                t2 = teams[mf['team2_index']]
+            if not t2:
+                t2 = teams[1 % len(teams)]
+
+            g_letter = mf.get('group') or t1.get('group') or 'A'
+            g_name = f"Group {g_letter}"
+            fix_id = f"fix_{tournament_id}_{match_counter}"
+            fixtures.append({
+                'id': fix_id,
+                'tournament_id': tournament_id,
+                'match_number': match_counter,
+                'team1_id': t1['id'],
+                'team1_name': t1['name'],
+                'team1_short': t1.get('short_name', t1['name'][:3].upper()),
+                'team1_color': t1.get('color', '#ed6a4e'),
+                'team2_id': t2['id'],
+                'team2_name': t2['name'],
+                'team2_short': t2.get('short_name', t2['name'][:3].upper()),
+                'team2_color': t2.get('color', '#3b82f6'),
+                'venue': mf.get('venue') or f"Stadium Pitch {((match_counter - 1) % 4) + 1}",
+                'match_date': mf.get('match_date') or f"{g_name} - Match {idx + 1}",
+                'stage': g_name,
+                'group_name': g_name,
+                'status': 'upcoming',
+                'winner_team_id': None,
+                'result_text': None,
+                'is_playoff': False
+            })
+            match_counter += 1
+    else:
+        for g_idx, g_teams in enumerate(groups):
+            g_letter = chr(65 + g_idx)
+            g_name = f"Group {g_letter}"
+            m = len(g_teams)
+            if m < 2:
+                continue
+            g_match_idx = 1
+            for i in range(m - 1):
+                for j in range(i + 1, m):
+                    t1 = g_teams[i]
+                    t2 = g_teams[j]
+                    fix_id = f"fix_{tournament_id}_{match_counter}"
+                    fixtures.append({
+                        'id': fix_id,
+                        'tournament_id': tournament_id,
+                        'match_number': match_counter,
+                        'team1_id': t1['id'],
+                        'team1_name': t1['name'],
+                        'team1_short': t1.get('short_name', t1['name'][:3].upper()),
+                        'team1_color': t1.get('color', '#ed6a4e'),
+                        'team2_id': t2['id'],
+                        'team2_name': t2['name'],
+                        'team2_short': t2.get('short_name', t2['name'][:3].upper()),
+                        'team2_color': t2.get('color', '#3b82f6'),
+                        'venue': f"Stadium Pitch {((match_counter - 1) % 4) + 1}",
+                        'match_date': f"{g_name} - Match {g_match_idx}",
+                        'stage': g_name,
+                        'group_name': g_name,
+                        'status': 'upcoming',
+                        'winner_team_id': None,
+                        'result_text': None,
+                        'is_playoff': False
+                    })
+                    match_counter += 1
+                    g_match_idx += 1
                 
     # 2. Playoff Stage Fixtures
     playoff_matches = []
@@ -833,7 +879,8 @@ def create_tournament_with_squads(tournament_data):
         elif schedule_mode == 'knockout':
             fixtures = generate_knockout_schedule(created_teams, tournament_id)
         elif schedule_mode == 'groups':
-            fixtures = generate_groups_schedule(created_teams, tournament_id, num_groups, qualifiers_per_group)
+            manual_grp_fix = tournament_data.get('manual_group_fixtures') or tournament_data.get('group_manual_fixtures')
+            fixtures = generate_groups_schedule(created_teams, tournament_id, num_groups, qualifiers_per_group, manual_grp_fix)
         elif schedule_mode == 'auto':
             fixtures = generate_round_robin_schedule(created_teams, tournament_id, rounds_count)
         else:
@@ -859,6 +906,30 @@ def create_tournament_with_squads(tournament_data):
             
         conn.commit()
         return tournament_id
+
+def add_fixture_to_tournament(tournament_id, fixture_data):
+    """Inserts a new fixture into an active tournament and returns the fixture ID."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT MAX(match_number) as max_num FROM fixtures WHERE tournament_id = ?", (tournament_id,))
+        row = cursor.fetchone()
+        next_num = (row['max_num'] or 0) + 1 if row else 1
+
+        fix_id = fixture_data.get('id') or f"fix_{tournament_id}_{next_num}"
+        match_number = fixture_data.get('match_number') or next_num
+        team1_id = fixture_data.get('team1_id')
+        team2_id = fixture_data.get('team2_id')
+        venue = fixture_data.get('venue', 'Main Cricket Stadium')
+        match_date = fixture_data.get('match_date', f"Match {match_number}")
+        stage = fixture_data.get('stage', 'Group Stage')
+        group_name = fixture_data.get('group_name')
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO fixtures (id, tournament_id, match_number, team1_id, team2_id, venue, match_date, status, stage, next_fixture_id, next_slot, group_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'upcoming', ?, NULL, NULL, ?)
+        """, (fix_id, tournament_id, match_number, team1_id, team2_id, venue, match_date, stage, group_name))
+        conn.commit()
+        return fix_id
 
 def get_tournaments_list(owner=None):
     """Returns tournaments, optionally filtered by owner."""

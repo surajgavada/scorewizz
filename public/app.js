@@ -336,7 +336,7 @@ function switchUserAdminWorkspace(userName) {
   if (userTours.length > 0) {
     // Admin has tournaments; set their active tournament to their most recent tournament
     appState.tournament = userTours[0];
-    const unplayed = (userTours[0].fixtures || []).find((f) => f.status !== 'completed' && !f.is_completed);
+    const unplayed = getNextPlayableFixture(userTours[0]);
     if (unplayed) {
       initMatchFromFixture(unplayed);
     } else if (userTours[0].fixtures && userTours[0].fixtures.length > 0) {
@@ -734,7 +734,7 @@ function generateKnockoutSchedule(teams, tournamentId) {
   return finalFixtures;
 }
 
-function generateGroupsKnockoutSchedule(teams, tournamentId, numGroups = 2, qualifiersPerGroup = 1) {
+function generateGroupsKnockoutSchedule(teams, tournamentId, numGroups = 2, qualifiersPerGroup = 1, manualGroupFixtures = null) {
   const gCount = Math.max(2, Math.min(16, Number(numGroups) || 2));
   const qCount = Math.max(1, Math.min(2, Number(qualifiersPerGroup) || 1));
 
@@ -756,45 +756,77 @@ function generateGroupsKnockoutSchedule(teams, tournamentId, numGroups = 2, qual
   const fixtures = [];
   let matchCounter = 1;
 
-  // 1. Group Stage Fixtures (Single round-robin within each group)
-  groups.forEach((gTeams, gIdx) => {
-    const gLetter = String.fromCharCode(65 + gIdx);
-    const gName = `Group ${gLetter}`;
-    const m = gTeams.length;
-    if (m < 2) return;
+  // 1. Group Stage Fixtures (Custom manual matchups by owner or auto round-robin)
+  if (manualGroupFixtures && manualGroupFixtures.length > 0) {
+    manualGroupFixtures.forEach((mf, mIdx) => {
+      const t1 = teams[mf.team1Index] || teams.find((t) => t.id === mf.team1_id) || teams[0];
+      const t2 = teams[mf.team2Index] || teams.find((t) => t.id === mf.team2_id) || teams[1 % teams.length];
+      const gLetter = mf.group || t1.group || 'A';
+      const gName = `Group ${gLetter}`;
+      const fixId = `fix_${tournamentId}_${matchCounter}`;
+      fixtures.push({
+        id: fixId,
+        tournament_id: tournamentId,
+        match_number: matchCounter,
+        team1_id: t1.id,
+        team1_name: t1.name,
+        team1_short: t1.short_name || t1.name.substring(0, 3).toUpperCase(),
+        team1_color: t1.color || '#ed6a4e',
+        team2_id: t2.id,
+        team2_name: t2.name,
+        team2_short: t2.short_name || t2.name.substring(0, 3).toUpperCase(),
+        team2_color: t2.color || '#3b82f6',
+        venue: mf.venue || `Stadium Pitch ${((matchCounter - 1) % 4) + 1}`,
+        match_date: `${gName} • Match ${mIdx + 1}`,
+        stage: gName,
+        group_name: gName,
+        status: 'upcoming',
+        winner_team_id: null,
+        result_text: null,
+        is_playoff: false
+      });
+      matchCounter++;
+    });
+  } else {
+    groups.forEach((gTeams, gIdx) => {
+      const gLetter = String.fromCharCode(65 + gIdx);
+      const gName = `Group ${gLetter}`;
+      const m = gTeams.length;
+      if (m < 2) return;
 
-    let gMatchIdx = 1;
-    for (let i = 0; i < m - 1; i++) {
-      for (let j = i + 1; j < m; j++) {
-        const t1 = gTeams[i];
-        const t2 = gTeams[j];
-        const fixId = `fix_${tournamentId}_${matchCounter}`;
-        fixtures.push({
-          id: fixId,
-          tournament_id: tournamentId,
-          match_number: matchCounter,
-          team1_id: t1.id,
-          team1_name: t1.name,
-          team1_short: t1.short_name || t1.name.substring(0, 3).toUpperCase(),
-          team1_color: t1.color || '#ed6a4e',
-          team2_id: t2.id,
-          team2_name: t2.name,
-          team2_short: t2.short_name || t2.name.substring(0, 3).toUpperCase(),
-          team2_color: t2.color || '#3b82f6',
-          venue: `Stadium Pitch ${((matchCounter - 1) % 4) + 1}`,
-          match_date: `${gName} • Match ${gMatchIdx}`,
-          stage: gName,
-          group_name: gName,
-          status: 'upcoming',
-          winner_team_id: null,
-          result_text: null,
-          is_playoff: false
-        });
-        matchCounter++;
-        gMatchIdx++;
+      let gMatchIdx = 1;
+      for (let i = 0; i < m - 1; i++) {
+        for (let j = i + 1; j < m; j++) {
+          const t1 = gTeams[i];
+          const t2 = gTeams[j];
+          const fixId = `fix_${tournamentId}_${matchCounter}`;
+          fixtures.push({
+            id: fixId,
+            tournament_id: tournamentId,
+            match_number: matchCounter,
+            team1_id: t1.id,
+            team1_name: t1.name,
+            team1_short: t1.short_name || t1.name.substring(0, 3).toUpperCase(),
+            team1_color: t1.color || '#ed6a4e',
+            team2_id: t2.id,
+            team2_name: t2.name,
+            team2_short: t2.short_name || t2.name.substring(0, 3).toUpperCase(),
+            team2_color: t2.color || '#3b82f6',
+            venue: `Stadium Pitch ${((matchCounter - 1) % 4) + 1}`,
+            match_date: `${gName} • Match ${gMatchIdx}`,
+            stage: gName,
+            group_name: gName,
+            status: 'upcoming',
+            winner_team_id: null,
+            result_text: null,
+            is_playoff: false
+          });
+          matchCounter++;
+          gMatchIdx++;
+        }
       }
-    }
-  });
+    });
+  }
 
   // 2. Playoff Stage Fixtures
   const playoffMatches = [];
@@ -1172,6 +1204,164 @@ function checkAndResolveGroupQualifiers(tour) {
 }
 
 // ----------------------------------------------------
+// SEQUENTIAL GROUP PROGRESSION HELPERS
+// ----------------------------------------------------
+
+function isGroupFixtureLocked(tour, fix) {
+  if (!tour || tour.schedule_mode !== 'groups' || !fix) return false;
+  if ((fix.status || '').toLowerCase() === 'completed' || Boolean(fix.is_completed)) return false;
+
+  // 1. Playoff match: locked until all group matches across all groups are finished
+  if (fix.is_playoff || String(fix.team1_id).startsWith('TBD_QUAL_') || String(fix.team2_id).startsWith('TBD_QUAL_') || (fix.stage && !fix.stage.toLowerCase().startsWith('group'))) {
+    const groupMatches = (tour.fixtures || []).filter(
+      (f) => !f.is_playoff && ((f.group_name && f.group_name.startsWith('Group ')) || (f.stage && f.stage.startsWith('Group ')))
+    );
+    const anyIncomplete = groupMatches.some(
+      (f) => (f.status || '').toLowerCase() !== 'completed' && !f.is_completed
+    );
+    if (anyIncomplete) {
+      return { locked: true, waitingForGroup: 'Group Stage' };
+    }
+    return false;
+  }
+
+  // 2. Group match: locked if any earlier group has incomplete matches
+  const fixGroupName = fix.group_name || fix.stage;
+  if (!fixGroupName || !fixGroupName.startsWith('Group ')) return false;
+
+  const fixLetter = fixGroupName.replace('Group ', '').trim().toUpperCase();
+  const fixCode = fixLetter.charCodeAt(0) - 65;
+  if (fixCode <= 0) return false; // Group A is never locked by an earlier group
+
+  for (let prevIdx = 0; prevIdx < fixCode; prevIdx++) {
+    const prevLetter = String.fromCharCode(65 + prevIdx);
+    const prevGroupName = `Group ${prevLetter}`;
+    const prevMatches = (tour.fixtures || []).filter(
+      (f) => !f.is_playoff && (f.group_name === prevGroupName || f.stage === prevGroupName)
+    );
+    const hasIncomplete = prevMatches.some(
+      (f) => (f.status || '').toLowerCase() !== 'completed' && !f.is_completed
+    );
+    if (hasIncomplete) {
+      return { locked: true, waitingForGroup: prevGroupName };
+    }
+  }
+
+  return false;
+}
+
+function getNextPlayableFixture(tour, currentFixtureId = null) {
+  if (!tour || !tour.fixtures || tour.fixtures.length === 0) return null;
+
+  if (tour.schedule_mode === 'groups') {
+    let numGroups = Number(tour.num_groups) || 0;
+    if (!numGroups) {
+      const groupLetters = new Set();
+      (tour.fixtures || []).forEach((f) => {
+        const gName = f.group_name || f.stage;
+        if (gName && gName.startsWith('Group ')) {
+          const letter = gName.replace('Group ', '').trim().toUpperCase();
+          if (letter) groupLetters.add(letter);
+        }
+      });
+      numGroups = Math.max(2, groupLetters.size);
+    }
+
+    // Check each group sequentially: Group A, then Group B, then Group C...
+    for (let g = 0; g < numGroups; g++) {
+      const gLetter = String.fromCharCode(65 + g);
+      const gName = `Group ${gLetter}`;
+      const groupFixtures = tour.fixtures.filter(
+        (f) => !f.is_playoff && (f.group_name === gName || f.stage === gName)
+      );
+
+      // Find unplayed matches in this group excluding currentFixtureId
+      const unplayedInGroup = groupFixtures.filter(
+        (f) => (f.status || '').toLowerCase() !== 'completed' && !f.is_completed && f.id !== currentFixtureId
+      );
+
+      if (unplayedInGroup.length > 0) {
+        return unplayedInGroup[0];
+      }
+
+      // Check if all matches in this group are finished
+      const allGroupDone = groupFixtures.every(
+        (f) => (f.status || '').toLowerCase() === 'completed' || Boolean(f.is_completed)
+      );
+
+      // If this group is not finished yet, don't jump to next group
+      if (!allGroupDone) {
+        const remaining = groupFixtures.find(
+          (f) => (f.status || '').toLowerCase() !== 'completed' && !f.is_completed
+        );
+        if (remaining) return remaining;
+      }
+    }
+
+    // All group stages completed! Proceed to playoff fixtures
+    const playoffFixtures = tour.fixtures.filter(
+      (f) => f.is_playoff || (f.stage && !f.stage.toLowerCase().startsWith('group'))
+    );
+    const nextPlayoff = playoffFixtures.find(
+      (f) => (f.status || '').toLowerCase() !== 'completed' && !f.is_completed && f.id !== currentFixtureId
+    );
+    if (nextPlayoff) return nextPlayoff;
+
+    return null;
+  }
+
+  // Non-groups tournaments
+  return (
+    tour.fixtures.find(
+      (f) => (f.status || '').toLowerCase() !== 'completed' && !f.is_completed && f.id !== currentFixtureId
+    ) || null
+  );
+}
+
+function getActiveGroupStageInfo(tour) {
+  if (!tour || tour.schedule_mode !== 'groups' || !tour.fixtures) return null;
+  let numGroups = Number(tour.num_groups) || 0;
+  if (!numGroups) {
+    const groupLetters = new Set();
+    tour.fixtures.forEach((f) => {
+      const gName = f.group_name || f.stage;
+      if (gName && gName.startsWith('Group ')) {
+        const letter = gName.replace('Group ', '').trim().toUpperCase();
+        if (letter) groupLetters.add(letter);
+      }
+    });
+    numGroups = Math.max(2, groupLetters.size);
+  }
+  for (let g = 0; g < numGroups; g++) {
+    const gLetter = String.fromCharCode(65 + g);
+    const gName = `Group ${gLetter}`;
+    const groupMatches = tour.fixtures.filter(
+      (f) => !f.is_playoff && (f.group_name === gName || f.stage === gName)
+    );
+    if (groupMatches.length === 0) continue;
+    const completedCount = groupMatches.filter(
+      (f) => (f.status || '').toLowerCase() === 'completed' || Boolean(f.is_completed)
+    ).length;
+    if (completedCount < groupMatches.length) {
+      return {
+        groupLetter: gLetter,
+        groupName: gName,
+        completedCount,
+        totalCount: groupMatches.length,
+        isPlayoffs: false
+      };
+    }
+  }
+  return {
+    groupLetter: 'Playoffs',
+    groupName: 'Playoffs & Finals',
+    completedCount: 0,
+    totalCount: 0,
+    isPlayoffs: true
+  };
+}
+
+// ----------------------------------------------------
 // PRE-MATCH PLAYING 11 ENGINE
 // ----------------------------------------------------
 
@@ -1185,6 +1375,11 @@ function openPlaying11Modal(team1, team2, oversLimit = 20, fixtureId = null, onC
       initMatchFromFixture(fix);
       switchView('scorecard');
       renderAllViews();
+      return;
+    }
+    const lockInfo = isGroupFixtureLocked(appState.tournament, fix);
+    if (lockInfo) {
+      showToast(`${lockInfo.waitingForGroup} matches are currently in progress! Complete ${lockInfo.waitingForGroup} up to the end before playing ${fix.group_name || fix.stage || 'this group'}.`);
       return;
     }
   }
@@ -1765,6 +1960,11 @@ window.openWalkoverModal = function (fixtureId = null) {
   if (fixtureId && tour?.fixtures) {
     targetFix = tour.fixtures.find((f) => f.id === fixtureId);
     if (targetFix) {
+      const lockInfo = isGroupFixtureLocked(tour, targetFix);
+      if (lockInfo) {
+        showToast(`Cannot award walkover: ${lockInfo.waitingForGroup} matches are still in progress! Complete ${lockInfo.waitingForGroup} first.`);
+        return;
+      }
       t1 = tour.teams?.find((t) => t.id === targetFix.team1_id) || { id: targetFix.team1_id, name: targetFix.team1_name || 'Team 1', short_name: targetFix.team1_short || 'T1', color: targetFix.team1_color || '#ed6a4e' };
       t2 = tour.teams?.find((t) => t.id === targetFix.team2_id) || { id: targetFix.team2_id, name: targetFix.team2_name || 'Team 2', short_name: targetFix.team2_short || 'T2', color: targetFix.team2_color || '#3b82f6' };
     }
@@ -3373,17 +3573,44 @@ function renderScoreboardView() {
       }
 
       const nextBtn = document.querySelector('#sbStartNextMatchBtn');
-      const upcomingFix = (appState.tournament?.fixtures || []).find((f) => f.status === 'upcoming' && f.id !== match.fixture_id);
+      const upcomingFix = getNextPlayableFixture(appState.tournament, match.fixture_id);
       if (nextBtn) {
         if (upcomingFix && appState.userRole === 'admin') {
           const t1 = appState.tournament.teams.find((t) => t.id === upcomingFix.team1_id);
           const t2 = appState.tournament.teams.find((t) => t.id === upcomingFix.team2_id);
-          nextBtn.textContent = `Start Next Match: ${t1 ? t1.short_name : 'T1'} vs ${t2 ? t2.short_name : 'T2'}`;
+          const t1Name = t1 ? t1.name : (upcomingFix.team1_name || 'Team 1');
+          const t2Name = t2 ? t2.name : (upcomingFix.team2_name || 'Team 2');
+          const t1Short = t1 ? t1.short_name : (upcomingFix.team1_short || 'T1');
+          const t2Short = t2 ? t2.short_name : (upcomingFix.team2_short || 'T2');
+          const currentStage = match.group_name || match.stage || '';
+          const nextStage = upcomingFix.group_name || upcomingFix.stage || '';
+          const isTransition = currentStage && nextStage && currentStage !== nextStage;
+
+          if (isTransition) {
+            nextBtn.textContent = `Start ${nextStage}: ${t1Short} vs ${t2Short} →`;
+          } else {
+            nextBtn.textContent = `Start Next Match: ${t1Short} vs ${t2Short}`;
+          }
           nextBtn.style.display = 'inline-flex';
           nextBtn.onclick = () => {
             initMatchFromFixture(upcomingFix);
             switchView('scoreboard');
-            showToast(`Match started: ${t1 ? t1.name : 'Team 1'} vs ${t2 ? t2.name : 'Team 2'}`);
+            if (isTransition) {
+              showToast(`${currentStage} completed! Now starting ${nextStage}: ${t1Name} vs ${t2Name}`);
+            } else {
+              showToast(`Match started: ${t1Name} vs ${t2Name}`);
+            }
+          };
+        } else if (upcomingFix && appState.userRole !== 'admin') {
+          const t1 = appState.tournament.teams.find((t) => t.id === upcomingFix.team1_id);
+          const t2 = appState.tournament.teams.find((t) => t.id === upcomingFix.team2_id);
+          const t1Short = t1 ? t1.short_name : (upcomingFix.team1_short || 'T1');
+          const t2Short = t2 ? t2.short_name : (upcomingFix.team2_short || 'T2');
+          nextBtn.textContent = `View Next Match: ${t1Short} vs ${t2Short}`;
+          nextBtn.style.display = 'inline-flex';
+          nextBtn.onclick = () => {
+            initMatchFromFixture(upcomingFix);
+            switchView('scoreboard');
           };
         } else if (appState.tournament) {
           nextBtn.textContent = 'View Tournament Standings';
@@ -3675,12 +3902,45 @@ function renderFixturesView() {
 
   if (grid) {
     grid.innerHTML = '';
+
+    const stageInfo = getActiveGroupStageInfo(tour);
+    if (tour.schedule_mode === 'groups' && stageInfo) {
+      const banner = document.createElement('div');
+      banner.className = 'panel';
+      banner.style.cssText = 'grid-column: 1 / -1; margin-bottom: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; background: linear-gradient(135deg, rgba(237, 106, 78, 0.08), rgba(245, 158, 11, 0.08)); border-left: 4px solid var(--coral);';
+      if (!stageInfo.isPlayoffs) {
+        banner.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(237, 106, 78, 0.15); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--coral);">GRP</div>
+            <div>
+              <div style="font-weight: 700; color: var(--ink); font-size: 14px;">Current Phase: <span style="color: var(--coral); font-weight: 800;">${stageInfo.groupName}</span> (${stageInfo.completedCount} / ${stageInfo.totalCount} Matches Completed)</div>
+              <div class="muted" style="font-size: 12px; margin-top: 2px;">Tournament plays sequentially: finish all ${stageInfo.groupName} matches to unlock the next group stage.</div>
+            </div>
+          </div>
+          <span class="badge" style="background: var(--coral); color: #fff; font-weight: 700;">Active Group Stage</span>
+        `;
+      } else {
+        banner.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--emerald);">KO</div>
+            <div>
+              <div style="font-weight: 700; color: var(--ink); font-size: 14px;">Current Phase: <span style="color: var(--emerald); font-weight: 800;">Playoffs & Finals</span></div>
+              <div class="muted" style="font-size: 12px; margin-top: 2px;">All group stages completed. Top qualifiers are competing in knockout playoffs.</div>
+            </div>
+          </div>
+          <span class="badge" style="background: var(--emerald); color: #fff; font-weight: 700;">Playoffs Active</span>
+        `;
+      }
+      grid.appendChild(banner);
+    }
+
     tour.fixtures.forEach((fix) => {
       const card = document.createElement('div');
       card.className = 'fixture-card';
 
       const isCompleted = (fix.status || '').toLowerCase() === 'completed' || Boolean(fix.is_completed);
       const isLive = (fix.status || '').toLowerCase() === 'live';
+      const lockInfo = isGroupFixtureLocked(tour, fix);
 
       let statusTagClass = 'status-upcoming';
       let statusText = 'Upcoming';
@@ -3690,6 +3950,9 @@ function renderFixturesView() {
       } else if (isCompleted) {
         statusTagClass = 'status-completed';
         statusText = 'Completed';
+      } else if (lockInfo && lockInfo.locked) {
+        statusTagClass = 'status-upcoming';
+        statusText = `[Locked] Awaiting ${lockInfo.waitingForGroup}`;
       }
 
       const isTbd1 = String(fix.team1_id).startsWith('TBD');
@@ -3718,14 +3981,17 @@ function renderFixturesView() {
         <div style="margin-top: auto; padding-top: 10px;">
           ${isCompleted
             ? `<button class="btn btn-sm btn-outline btn-block" onclick="startMatchFromSchedule('${fix.id}')">View Result</button>`
-            : (isTbd1 || isTbd2
-              ? `<button class="btn btn-sm btn-ghost btn-block" onclick="startMatchFromSchedule('${fix.id}')" style="opacity: 0.6;">Awaiting Previous Round</button>`
-              : (appState.userRole === 'admin'
-                ? `<div style="display: flex; gap: 6px;">
-                     <button class="btn btn-sm btn-primary" style="flex: 1;" onclick="startMatchFromSchedule('${fix.id}')">Score Match →</button>
-                     <button class="btn btn-sm btn-outline admin-only" title="Opponent not available / Award walkover win" style="color: var(--amber); border-color: rgba(245, 158, 11, 0.4); font-size: 11px; padding: 6px 10px;" onclick="openWalkoverModal('${fix.id}')">Walkover</button>
-                   </div>`
-                : `<button class="btn btn-sm btn-primary btn-block" onclick="startMatchFromSchedule('${fix.id}')">View Match</button>`
+            : (lockInfo && lockInfo.locked
+              ? `<button class="btn btn-sm btn-ghost btn-block" style="opacity: 0.65; cursor: not-allowed; border: 1px dashed rgba(100,116,139,0.3); font-size: 11.5px;" onclick="startMatchFromSchedule('${fix.id}')">[Locked] Awaiting ${lockInfo.waitingForGroup}</button>`
+              : (isTbd1 || isTbd2
+                ? `<button class="btn btn-sm btn-ghost btn-block" onclick="startMatchFromSchedule('${fix.id}')" style="opacity: 0.6;">Awaiting Previous Round</button>`
+                : (appState.userRole === 'admin'
+                  ? `<div style="display: flex; gap: 6px;">
+                       <button class="btn btn-sm btn-primary" style="flex: 1;" onclick="startMatchFromSchedule('${fix.id}')">Score Match →</button>
+                       <button class="btn btn-sm btn-outline admin-only" title="Opponent not available / Award walkover win" style="color: var(--amber); border-color: rgba(245, 158, 11, 0.4); font-size: 11px; padding: 6px 10px;" onclick="openWalkoverModal('${fix.id}')">Walkover</button>
+                     </div>`
+                  : `<button class="btn btn-sm btn-primary btn-block" onclick="startMatchFromSchedule('${fix.id}')">View Match</button>`
+                )
               )
             )
           }
@@ -3832,6 +4098,20 @@ window.startMatchFromSchedule = function (fixtureId) {
 
   const isCompleted = (fix.status || '').toLowerCase() === 'completed' || Boolean(fix.is_completed);
 
+  if (isCompleted) {
+    initMatchFromFixture(fix);
+    switchView('scorecard');
+    renderAllViews();
+    showToast(`Viewing Result: ${fix.team1_name} vs ${fix.team2_name}`);
+    return;
+  }
+
+  const lockInfo = isGroupFixtureLocked(appState.tournament, fix);
+  if (lockInfo && lockInfo.locked) {
+    showToast(`Fixture Locked: Complete all matches in ${lockInfo.waitingForGroup} first!`);
+    return;
+  }
+
   if (String(fix.team1_id).startsWith('TBD_QUAL_') || String(fix.team2_id).startsWith('TBD_QUAL_')) {
     showToast('Playoff teams are determined by group standings. Complete all group stage matches first!');
     return;
@@ -3839,14 +4119,6 @@ window.startMatchFromSchedule = function (fixtureId) {
 
   if (String(fix.team1_id).startsWith('TBD') || String(fix.team2_id).startsWith('TBD')) {
     showToast('Teams for this match are not decided yet. Complete earlier round matches first!');
-    return;
-  }
-
-  if (isCompleted) {
-    initMatchFromFixture(fix);
-    switchView('scorecard');
-    renderAllViews();
-    showToast(`Viewing Result: ${fix.team1_name} vs ${fix.team2_name}`);
     return;
   }
 
@@ -6189,6 +6461,7 @@ function buildWizardScheduleStep() {
 
   updateWizardGroupsPreview();
   renderWizardManualMatchesList();
+  renderWizardGroupMatchesList();
 }
 
 function updateWizardGroupsPreview() {
@@ -6339,9 +6612,9 @@ function updateWizardGroupsPreview() {
               <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
                 <select class="form-control wiz-manual-reassign-select" data-team-index="${teamIdx}" style="padding: 1px 4px; font-size: 10px; height: 22px; width: 75px;" title="Move team to another group">
                   ${moveOptions}
-                  <option value="none">✕ Unassign</option>
+                  <option value="none">&times; Unassign</option>
                 </select>
-                <button type="button" class="btn btn-xs btn-ghost wiz-manual-remove-btn" data-team-index="${teamIdx}" style="padding: 0 4px; color: var(--coral); font-size: 12px; font-weight: 700; line-height: 1;" title="Remove ${t.name} from ${g.name}">✕</button>
+                <button type="button" class="btn btn-xs btn-ghost wiz-manual-remove-btn" data-team-index="${teamIdx}" style="padding: 0 4px; color: var(--coral); font-size: 14px; font-weight: 700; line-height: 1;" title="Remove ${t.name} from ${g.name}">&times;</button>
               </div>
             </div>
           `;
@@ -6446,13 +6719,28 @@ function updateWizardGroupsPreview() {
   });
 
   // Match calculations & feedback
+  const isFixManual = appState.wizardData?.groupFixturesMode === 'manual';
   let groupMatchesCount = 0;
   let hasSmallGroup = false;
-  groups.forEach((g) => {
-    const m = g.teams.length;
-    if (m >= 2) groupMatchesCount += (m * (m - 1)) / 2;
-    if (m < 2) hasSmallGroup = true;
-  });
+
+  if (isFixManual) {
+    groupMatchesCount = (appState.wizardData?.groupManualFixtures || []).length;
+    groups.forEach((g) => {
+      if (g.teams.length < 2) hasSmallGroup = true;
+    });
+  } else {
+    groups.forEach((g) => {
+      const m = g.teams.length;
+      if (m >= 2) groupMatchesCount += (m * (m - 1)) / 2;
+      if (m < 2) hasSmallGroup = true;
+    });
+  }
+
+  const countBadge = document.querySelector('#wizGroupMatchCountBadge');
+  if (countBadge) {
+    const count = (appState.wizardData?.groupManualFixtures || []).length;
+    countBadge.textContent = `${count} group ${count === 1 ? 'match' : 'matches'}`;
+  }
 
   let playoffMatchesCount = 1;
   if (numGroups === 2 && qualifiersPerGroup === 1) playoffMatchesCount = 1;
@@ -6465,18 +6753,20 @@ function updateWizardGroupsPreview() {
 
   if (noteEl) {
     if (isManual && unassignedTeams.length > 0) {
-      noteEl.innerHTML = `<span style="color: var(--coral); font-weight: 700;">⚠️ ${unassignedTeams.length} ${unassignedTeams.length === 1 ? 'team is' : 'teams are'} unassigned.</span> Add every team to a group to complete tournament fixtures.`;
-    } else if (hasSmallGroup) {
-      noteEl.innerHTML = `<span style="color: var(--gold); font-weight: 700;">⚠️ Every group needs at least 2 teams</span> to play round-robin matches.`;
+      noteEl.innerHTML = `<span style="color: var(--coral); font-weight: 700;">[Notice] ${unassignedTeams.length} ${unassignedTeams.length === 1 ? 'team is' : 'teams are'} unassigned.</span> Add every team to a group to complete tournament fixtures.`;
+    } else if (hasSmallGroup && !isFixManual) {
+      noteEl.innerHTML = `<span style="color: var(--gold); font-weight: 700;">[Notice] Every group needs at least 2 teams</span> to play round-robin matches.`;
     } else {
-      noteEl.innerHTML = `<span style="color: #10b981; font-weight: 700;">✅ All ${teams.length} teams assigned!</span> <strong>${groupMatchesCount + playoffMatchesCount} total matches</strong> (${groupMatchesCount} group round-robin + ${playoffMatchesCount} playoff knockouts)`;
+      const grpLabel = isFixManual ? 'custom group matches' : 'group round-robin';
+      noteEl.innerHTML = `<span style="color: #10b981; font-weight: 700;">[Ready] All ${teams.length} teams assigned!</span> <strong>${groupMatchesCount + playoffMatchesCount} total matches</strong> (${groupMatchesCount} ${grpLabel} + ${playoffMatchesCount} playoff knockouts)`;
     }
   }
 
   const graphPreview = document.querySelector('#wizGroupsGraphPreview');
   if (graphPreview && graphPreview.style.display !== 'none') {
     if (!hasSmallGroup && unassignedTeams.length === 0) {
-      const previewFixtures = generateGroupsKnockoutSchedule(teams, 'tour_preview', numGroups, qualifiersPerGroup);
+      const manualFix = isFixManual ? appState.wizardData.groupManualFixtures : null;
+      const previewFixtures = generateGroupsKnockoutSchedule(teams, 'tour_preview', numGroups, qualifiersPerGroup, manualFix);
       const playoffOnly = previewFixtures.filter((f) => f.is_playoff);
       renderKnockoutBracketTree('#wizGroupsGraphPreview', playoffOnly, teams);
     } else {
@@ -6561,6 +6851,251 @@ function addWizardManualMatch() {
   showToast('Matchup added');
 }
 
+// ----------------------------------------------------
+// GROUP STAGE MATCHMAKER (Which Team Plays Which Team)
+// ----------------------------------------------------
+
+function setWizardGroupFixMode(mode) {
+  if (!appState.wizardData) appState.wizardData = {};
+  appState.wizardData.groupFixturesMode = mode; // 'auto' | 'manual'
+  const autoBtn = document.querySelector('#wizGrpFixModeAuto');
+  const manualBtn = document.querySelector('#wizGrpFixModeManual');
+  const area = document.querySelector('#wizGroupManualMatchmakerArea');
+
+  if (autoBtn) autoBtn.classList.toggle('active', mode === 'auto');
+  if (manualBtn) manualBtn.classList.toggle('active', mode === 'manual');
+  if (area) area.style.display = (mode === 'manual') ? 'block' : 'none';
+
+  if (mode === 'manual') {
+    if (!appState.wizardData.groupManualFixtures || appState.wizardData.groupManualFixtures.length === 0) {
+      prefillWizardGroupMatches(true);
+    } else {
+      renderWizardGroupMatchesList();
+    }
+  }
+  updateWizardGroupsPreview();
+}
+
+function renderWizardGroupMatchesList() {
+  const container = document.querySelector('#wizGroupMatchesList');
+  const countBadge = document.querySelector('#wizGroupMatchCountBadge');
+  if (!container) return;
+
+  const teams = appState.wizardData.teams || [];
+  const numGroups = Number(document.querySelector('#wizNumGroups')?.value) || 2;
+
+  if (!appState.wizardData.groupManualFixtures) {
+    appState.wizardData.groupManualFixtures = [];
+  }
+
+  const fixList = appState.wizardData.groupManualFixtures;
+  if (countBadge) {
+    countBadge.textContent = `${fixList.length} group ${fixList.length === 1 ? 'match' : 'matches'}`;
+  }
+
+  if (fixList.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; color: var(--ink-muted); font-size: 12px; padding: 14px; background: rgba(255,255,255,0.02); border: 1px dashed var(--line); border-radius: var(--radius-sm);">
+        No custom group matchups added yet. Click <strong>+ Add Matchup</strong> or <strong>Pre-fill Group Pairs</strong> to schedule matches.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = '';
+
+  fixList.forEach((fix, idx) => {
+    const row = document.createElement('div');
+    row.className = 'manual-match-row';
+    row.style.display = 'grid';
+    row.style.gridTemplateColumns = 'auto 1fr auto 1fr auto';
+    row.style.gap = '6px';
+    row.style.alignItems = 'center';
+    row.style.background = 'var(--bg-card)';
+    row.style.padding = '6px 8px';
+    row.style.borderRadius = 'var(--radius-sm)';
+    row.style.border = '1px solid var(--line)';
+
+    const currentGroup = fix.group || (teams[fix.team1Index]?.group) || 'A';
+    const groupSel = `
+      <select class="form-control form-control-sm wiz-grp-fix-group" data-idx="${idx}" style="font-size: 11px; font-weight: 700; padding: 4px 6px; width: 88px;" title="Group">
+        ${Array.from({ length: numGroups }, (_, g) => {
+          const letter = String.fromCharCode(65 + g);
+          return `<option value="${letter}" ${letter === currentGroup ? 'selected' : ''}>Grp ${letter}</option>`;
+        }).join('')}
+      </select>
+    `;
+
+    let teamOpts = '';
+    for (let g = 0; g < numGroups; g++) {
+      const letter = String.fromCharCode(65 + g);
+      const inGrp = teams.map((t, tIdx) => ({ t, tIdx })).filter(item => item.t.group === letter);
+      if (inGrp.length > 0) {
+        teamOpts += `<optgroup label="Group ${letter}">`;
+        inGrp.forEach(({ t, tIdx }) => {
+          teamOpts += `<option value="${tIdx}">${t.name}</option>`;
+        });
+        teamOpts += `</optgroup>`;
+      }
+    }
+    const unassigned = teams.map((t, tIdx) => ({ t, tIdx })).filter(item => !item.t.group);
+    if (unassigned.length > 0) {
+      teamOpts += `<optgroup label="Unassigned">`;
+      unassigned.forEach(({ t, tIdx }) => {
+        teamOpts += `<option value="${tIdx}">${t.name}</option>`;
+      });
+      teamOpts += `</optgroup>`;
+    }
+
+    const t1Sel = `
+      <select class="form-control form-control-sm wiz-grp-fix-t1" data-idx="${idx}" style="font-size: 11px; padding: 4px 6px;">
+        ${teamOpts}
+      </select>
+    `;
+
+    const t2Sel = `
+      <select class="form-control form-control-sm wiz-grp-fix-t2" data-idx="${idx}" style="font-size: 11px; padding: 4px 6px;">
+        ${teamOpts}
+      </select>
+    `;
+
+    row.innerHTML = `
+      ${groupSel}
+      ${t1Sel}
+      <span style="font-size: 10px; font-weight: 800; color: var(--ink-muted); text-align: center;">VS</span>
+      ${t2Sel}
+      <button type="button" class="btn btn-xs btn-ghost" style="color: var(--coral); padding: 2px 6px; font-size: 14px; line-height: 1;" onclick="removeWizardGroupMatch(${idx})" title="Remove matchup">&times;</button>
+    `;
+
+    container.appendChild(row);
+
+    const t1Elem = row.querySelector('.wiz-grp-fix-t1');
+    if (t1Elem) t1Elem.value = String(fix.team1Index ?? 0);
+    const t2Elem = row.querySelector('.wiz-grp-fix-t2');
+    if (t2Elem) t2Elem.value = String(fix.team2Index ?? (teams.length > 1 ? 1 : 0));
+  });
+
+  container.querySelectorAll('.wiz-grp-fix-group').forEach((sel) => {
+    sel.onchange = (e) => {
+      const idx = Number(e.target.dataset.idx);
+      if (appState.wizardData.groupManualFixtures[idx]) {
+        appState.wizardData.groupManualFixtures[idx].group = e.target.value;
+      }
+    };
+  });
+
+  container.querySelectorAll('.wiz-grp-fix-t1').forEach((sel) => {
+    sel.onchange = (e) => {
+      const idx = Number(e.target.dataset.idx);
+      const val = Number(e.target.value);
+      if (appState.wizardData.groupManualFixtures[idx]) {
+        appState.wizardData.groupManualFixtures[idx].team1Index = val;
+        if (teams[val]?.group) {
+          appState.wizardData.groupManualFixtures[idx].group = teams[val].group;
+          const grpSel = sel.closest('.manual-match-row')?.querySelector('.wiz-grp-fix-group');
+          if (grpSel) grpSel.value = teams[val].group;
+        }
+      }
+    };
+  });
+
+  container.querySelectorAll('.wiz-grp-fix-t2').forEach((sel) => {
+    sel.onchange = (e) => {
+      const idx = Number(e.target.dataset.idx);
+      const val = Number(e.target.value);
+      if (appState.wizardData.groupManualFixtures[idx]) {
+        appState.wizardData.groupManualFixtures[idx].team2Index = val;
+      }
+    };
+  });
+}
+
+window.removeWizardGroupMatch = function (idx) {
+  if (appState.wizardData && appState.wizardData.groupManualFixtures) {
+    appState.wizardData.groupManualFixtures.splice(idx, 1);
+    renderWizardGroupMatchesList();
+    updateWizardGroupsPreview();
+  }
+};
+
+function addWizardGroupMatch() {
+  const teams = appState.wizardData.teams || [];
+  if (teams.length < 2) {
+    showToast('Need at least 2 teams');
+    return;
+  }
+  if (!appState.wizardData) appState.wizardData = {};
+  if (!appState.wizardData.groupManualFixtures) appState.wizardData.groupManualFixtures = [];
+
+  const numGroups = Number(document.querySelector('#wizNumGroups')?.value) || 2;
+  let t1Idx = 0, t2Idx = 1, grp = 'A';
+
+  for (let g = 0; g < numGroups; g++) {
+    const letter = String.fromCharCode(65 + g);
+    const inGrp = teams.map((t, idx) => ({ t, idx })).filter(item => item.t.group === letter);
+    if (inGrp.length >= 2) {
+      t1Idx = inGrp[0].idx;
+      t2Idx = inGrp[1].idx;
+      grp = letter;
+      break;
+    }
+  }
+
+  const nextNum = appState.wizardData.groupManualFixtures.length + 1;
+  appState.wizardData.groupManualFixtures.push({
+    group: grp,
+    team1Index: t1Idx,
+    team2Index: t2Idx,
+    venue: `Stadium Pitch ${((nextNum - 1) % 4) + 1}`,
+    date: `Match ${nextNum}`
+  });
+
+  renderWizardGroupMatchesList();
+  updateWizardGroupsPreview();
+  showToast('Group matchup added');
+}
+
+function prefillWizardGroupMatches(silent = false) {
+  const teams = appState.wizardData.teams || [];
+  const numGroups = Number(document.querySelector('#wizNumGroups')?.value) || 2;
+  if (!appState.wizardData) appState.wizardData = {};
+  appState.wizardData.groupManualFixtures = [];
+
+  let matchNum = 1;
+  for (let g = 0; g < numGroups; g++) {
+    const letter = String.fromCharCode(65 + g);
+    const inGrp = teams.map((t, idx) => ({ t, idx })).filter(item => item.t.group === letter);
+    const m = inGrp.length;
+    for (let i = 0; i < m - 1; i++) {
+      for (let j = i + 1; j < m; j++) {
+        appState.wizardData.groupManualFixtures.push({
+          group: letter,
+          team1Index: inGrp[i].idx,
+          team2Index: inGrp[j].idx,
+          venue: `Stadium Pitch ${((matchNum - 1) % 4) + 1}`,
+          date: `Match ${matchNum}`
+        });
+        matchNum++;
+      }
+    }
+  }
+
+  renderWizardGroupMatchesList();
+  updateWizardGroupsPreview();
+  if (!silent) {
+    showToast(`Pre-filled ${appState.wizardData.groupManualFixtures.length} group matches!`);
+  }
+}
+
+function clearWizardGroupMatches() {
+  if (appState.wizardData) {
+    appState.wizardData.groupManualFixtures = [];
+  }
+  renderWizardGroupMatchesList();
+  updateWizardGroupsPreview();
+  showToast('Group matchups cleared');
+}
+
 async function handleWizardLaunch() {
   saveCurrentTeamSquad(false);
 
@@ -6629,7 +7164,8 @@ async function handleWizardLaunch() {
       t.group = gLetter;
       t.group_name = `Group ${gLetter}`;
     });
-    fixtures = generateGroupsKnockoutSchedule(teams, tId, numGroups, qualifiersPerGroup);
+    const manualGroupFix = appState.wizardData.groupFixturesMode === 'manual' ? appState.wizardData.groupManualFixtures : null;
+    fixtures = generateGroupsKnockoutSchedule(teams, tId, numGroups, qualifiersPerGroup, manualGroupFix);
   } else if (scheduleType === 'knockout') {
     fixtures = generateKnockoutSchedule(teams, tId);
   } else if (scheduleType === 'manual' && appState.wizardData.manualFixtures && appState.wizardData.manualFixtures.length > 0) {
@@ -6691,6 +7227,7 @@ async function handleWizardLaunch() {
     num_groups: numGroups,
     qualifiers_per_group: qualifiersPerGroup,
     owner: appState.adminName || 'Suraj',
+    manual_group_fixtures: (appState.wizardData.groupFixturesMode === 'manual' ? appState.wizardData.groupManualFixtures : null),
     teams,
     fixtures,
     points_table: pointsTable,
@@ -6699,7 +7236,8 @@ async function handleWizardLaunch() {
   };
 
   if (fixtures.length > 0) {
-    initMatchFromFixture(fixtures[0]);
+    const firstPlayable = getNextPlayableFixture(appState.tournament) || fixtures[0];
+    initMatchFromFixture(firstPlayable);
   }
 
   apiFetch('/api/tournaments', 'POST', appState.tournament);
@@ -6758,7 +7296,7 @@ function renderEditSquadModalUI(team) {
   const addBtn = document.querySelector('#editSquadAddPlayerBtn');
   if (addBtn) {
     addBtn.disabled = count >= 15;
-    addBtn.textContent = count >= 15 ? 'Max 15 Reached' : '＋ Add Player (Max 15)';
+    addBtn.textContent = count >= 15 ? 'Max 15 Reached' : '+ Add Player (Max 15)';
   }
 
   // Captain & Vice-Captain selects
@@ -6957,6 +7495,158 @@ function saveEditedSquad() {
   const capName = team.players.find((p) => p.is_captain)?.name || 'N/A';
   const vcName = team.players.find((p) => p.is_vice_captain)?.name || 'N/A';
   showToast(`Saved squad for ${team.name} (${team.players.length} players, C: ${capName}, VC: ${vcName})`);
+}
+
+// ----------------------------------------------------
+// ADD FIXTURE MODAL (Mid-tournament match addition for Tournament Owner)
+// ----------------------------------------------------
+
+window.openAddFixtureModal = function (defaultStage = null) {
+  const tour = appState.tournament;
+  if (!tour || !tour.teams || tour.teams.length < 2) {
+    showToast('No active tournament found. Launch a tournament first.');
+    openTournamentWizard();
+    return;
+  }
+
+  const modal = document.querySelector('#addFixtureModal');
+  if (!modal) return;
+
+  const stageSel = document.querySelector('#addFixStageSelect');
+  const t1Sel = document.querySelector('#addFixTeam1Select');
+  const t2Sel = document.querySelector('#addFixTeam2Select');
+  const venueInp = document.querySelector('#addFixVenueInput');
+  const dateInp = document.querySelector('#addFixDateInput');
+
+  if (stageSel) {
+    let stageOpts = '';
+    const numGroups = tour.num_groups || 0;
+    const hasGroups = numGroups > 1 || tour.teams.some(t => t.group_name || t.group);
+
+    if (hasGroups) {
+      const gCount = Math.max(numGroups, 2);
+      for (let g = 0; g < gCount; g++) {
+        const letter = String.fromCharCode(65 + g);
+        stageOpts += `<option value="Group ${letter}">Group ${letter} Match</option>`;
+      }
+      stageOpts += `<option value="Playoffs">Playoff Match</option>`;
+      stageOpts += `<option value="Semi-Final">Semi-Final</option>`;
+      stageOpts += `<option value="Grand Final">Grand Final</option>`;
+    } else if (tour.schedule_mode === 'knockout' || (tour.format && tour.format.toLowerCase().includes('knockout'))) {
+      stageOpts += `<option value="Round 1">Round 1</option>`;
+      stageOpts += `<option value="Quarter-Final">Quarter-Final</option>`;
+      stageOpts += `<option value="Semi-Final">Semi-Final</option>`;
+      stageOpts += `<option value="Grand Final">Grand Final</option>`;
+    } else {
+      stageOpts += `<option value="League Match">League Match</option>`;
+      stageOpts += `<option value="Playoffs">Playoff Match</option>`;
+      stageOpts += `<option value="Final">Final</option>`;
+    }
+    stageOpts += `<option value="Special Match">Special Match</option>`;
+    stageSel.innerHTML = stageOpts;
+    if (defaultStage) stageSel.value = defaultStage;
+  }
+
+  if (t1Sel && t2Sel) {
+    const teamsHtml = tour.teams.map((t) => {
+      const label = t.group_name ? `${t.name} (${t.group_name})` : t.name;
+      return `<option value="${t.id}">${label}</option>`;
+    }).join('');
+    t1Sel.innerHTML = teamsHtml;
+    t2Sel.innerHTML = teamsHtml;
+
+    if (tour.teams.length >= 2) {
+      t1Sel.value = tour.teams[0].id;
+      t2Sel.value = tour.teams[1].id;
+    }
+  }
+
+  if (venueInp) venueInp.value = 'Main Cricket Stadium';
+  if (dateInp) {
+    const count = (tour.fixtures || []).length;
+    dateInp.value = `Match ${count + 1}`;
+  }
+
+  modal.classList.add('show');
+};
+
+window.closeAddFixtureModal = function () {
+  const modal = document.querySelector('#addFixtureModal');
+  if (modal) modal.classList.remove('show');
+};
+
+async function handleConfirmAddFixture() {
+  const tour = appState.tournament;
+  if (!tour || !tour.teams) return;
+
+  const stageSel = document.querySelector('#addFixStageSelect');
+  const t1Sel = document.querySelector('#addFixTeam1Select');
+  const t2Sel = document.querySelector('#addFixTeam2Select');
+  const venueInp = document.querySelector('#addFixVenueInput');
+  const dateInp = document.querySelector('#addFixDateInput');
+
+  const team1Id = t1Sel?.value;
+  const team2Id = t2Sel?.value;
+  const stage = stageSel?.value || 'League Match';
+  const venue = venueInp?.value.trim() || 'Main Cricket Stadium';
+  const matchDate = dateInp?.value.trim() || `Match ${(tour.fixtures || []).length + 1}`;
+
+  if (!team1Id || !team2Id) {
+    showToast('Please select both teams');
+    return;
+  }
+  if (team1Id === team2Id) {
+    showToast('Please select two different teams');
+    return;
+  }
+
+  const t1 = tour.teams.find(t => t.id === team1Id);
+  const t2 = tour.teams.find(t => t.id === team2Id);
+  if (!t1 || !t2) {
+    showToast('Invalid team selection');
+    return;
+  }
+
+  const existingNums = (tour.fixtures || []).map(f => Number(f.match_number) || 0);
+  const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1;
+  const fixId = `fix_${tour.id}_${nextNum}_${Date.now()}`;
+  const isGroupStage = stage.startsWith('Group');
+
+  const newFixture = {
+    id: fixId,
+    tournament_id: tour.id,
+    match_number: nextNum,
+    team1_id: t1.id,
+    team1_name: t1.name,
+    team1_short: t1.short_name || t1.name.substring(0, 3).toUpperCase(),
+    team1_color: t1.color || '#ed6a4e',
+    team2_id: t2.id,
+    team2_name: t2.name,
+    team2_short: t2.short_name || t2.name.substring(0, 3).toUpperCase(),
+    team2_color: t2.color || '#3b82f6',
+    venue: venue,
+    match_date: matchDate,
+    stage: stage,
+    group_name: isGroupStage ? stage : null,
+    status: 'upcoming',
+    winner_team_id: null,
+    result_text: null,
+    is_playoff: Boolean(stage.includes('Final') || stage.includes('Playoff'))
+  };
+
+  if (!tour.fixtures) tour.fixtures = [];
+  tour.fixtures.push(newFixture);
+
+  try {
+    await apiFetch(`/api/tournaments/${tour.id}/fixtures`, 'POST', newFixture);
+  } catch (err) {
+    console.error('Failed to sync new fixture with backend:', err);
+  }
+
+  saveToLocalStorage();
+  closeAddFixtureModal();
+  renderFixturesView();
+  showToast(`Match scheduled: ${t1.name} vs ${t2.name}`);
 }
 
 // ----------------------------------------------------
@@ -7974,24 +8664,51 @@ function openVictoryModal() {
   const nextMatchInfo = document.querySelector('#victoryNextMatchInfo');
   const startNextBtn = document.querySelector('#startNextMatchBtn');
 
-  const upcomingFix = (appState.tournament?.fixtures || []).find((f) => f.status === 'upcoming' && f.id !== match.fixture_id);
+  const upcomingFix = getNextPlayableFixture(appState.tournament, match.fixture_id);
 
   if (upcomingFix) {
     const t1 = appState.tournament.teams.find((t) => t.id === upcomingFix.team1_id);
     const t2 = appState.tournament.teams.find((t) => t.id === upcomingFix.team2_id);
-    const t1Name = t1 ? t1.name : 'Team 1';
-    const t2Name = t2 ? t2.name : 'Team 2';
+    const t1Name = t1 ? t1.name : (upcomingFix.team1_name || 'Team 1');
+    const t2Name = t2 ? t2.name : (upcomingFix.team2_name || 'Team 2');
+    const t1Short = t1 ? t1.short_name : (upcomingFix.team1_short || 'T1');
+    const t2Short = t2 ? t2.short_name : (upcomingFix.team2_short || 'T2');
+
+    const currentStage = match.group_name || match.stage || '';
+    const nextStage = upcomingFix.group_name || upcomingFix.stage || '';
+    const isTransition = currentStage && nextStage && currentStage !== nextStage;
 
     if (nextMatchBox) nextMatchBox.style.display = 'block';
-    if (nextMatchInfo) nextMatchInfo.textContent = `Next Fixture: ${t1Name} vs ${t2Name} (${upcomingFix.stage || 'Match'})`;
+    if (nextMatchInfo) {
+      if (isTransition) {
+        nextMatchInfo.innerHTML = `<strong style="color: var(--coral);">${currentStage} Completed!</strong> Next Stage: <strong style="color: var(--emerald);">${nextStage}</strong> • ${t1Name} vs ${t2Name}`;
+      } else {
+        nextMatchInfo.textContent = `Next Fixture: ${t1Name} vs ${t2Name} (${upcomingFix.stage || 'Match'})`;
+      }
+    }
     if (startNextBtn) {
-      startNextBtn.textContent = `Start Next Match: ${t1 ? t1.short_name : 'T1'} vs ${t2 ? t2.short_name : 'T2'}`;
-      startNextBtn.onclick = () => {
-        initMatchFromFixture(upcomingFix);
-        closeVictoryModal();
-        switchView('scoreboard');
-        showToast(`Match started: ${t1Name} vs ${t2Name}`);
-      };
+      if (appState.userRole === 'admin') {
+        startNextBtn.textContent = isTransition
+          ? `Proceed to ${nextStage}: ${t1Short} vs ${t2Short} →`
+          : `Start Next Match: ${t1Short} vs ${t2Short}`;
+        startNextBtn.onclick = () => {
+          initMatchFromFixture(upcomingFix);
+          closeVictoryModal();
+          switchView('scoreboard');
+          if (isTransition) {
+            showToast(`${currentStage} concluded! Starting ${nextStage}: ${t1Name} vs ${t2Name}`);
+          } else {
+            showToast(`Match started: ${t1Name} vs ${t2Name}`);
+          }
+        };
+      } else {
+        startNextBtn.textContent = `View Next Match: ${t1Short} vs ${t2Short}`;
+        startNextBtn.onclick = () => {
+          initMatchFromFixture(upcomingFix);
+          closeVictoryModal();
+          switchView('scoreboard');
+        };
+      }
     }
   } else if (appState.tournament) {
     if (nextMatchBox) nextMatchBox.style.display = 'block';
@@ -8184,10 +8901,10 @@ function setActiveTournament(tourId) {
   appState.tournament = target;
   saveToLocalStorage(true);
 
-  // Set active match to first unplayed or first fixture
-  const unplayed = (target.fixtures || []).find((f) => f.status !== 'completed' && !f.is_completed);
-  if (unplayed) {
-    initMatchFromFixture(unplayed);
+  // Set active match to next playable sequential fixture or first fixture
+  const playable = getNextPlayableFixture(target);
+  if (playable) {
+    initMatchFromFixture(playable);
   } else if (target.fixtures && target.fixtures.length > 0) {
     initMatchFromFixture(target.fixtures[0]);
   }
