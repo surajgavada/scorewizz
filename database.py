@@ -169,6 +169,43 @@ def init_db():
             cursor.execute("ALTER TABLE fixtures ADD COLUMN group_name TEXT")
         except Exception:
             pass
+
+        try:
+            cursor.execute("PRAGMA foreign_key_list(fixtures)")
+            fk_list = cursor.fetchall()
+            has_team_fk = any(fk['table'] == 'teams' for fk in fk_list)
+            if has_team_fk:
+                cursor.execute("PRAGMA foreign_keys = OFF")
+                cursor.execute("""
+                    CREATE TABLE fixtures_migration (
+                        id TEXT PRIMARY KEY,
+                        tournament_id TEXT NOT NULL,
+                        match_number INTEGER NOT NULL,
+                        team1_id TEXT NOT NULL,
+                        team2_id TEXT NOT NULL,
+                        venue TEXT DEFAULT 'Main Cricket Stadium',
+                        match_date TEXT DEFAULT 'Today',
+                        status TEXT NOT NULL DEFAULT 'upcoming',
+                        stage TEXT,
+                        next_fixture_id TEXT,
+                        next_slot INTEGER,
+                        winner_team_id TEXT,
+                        result_text TEXT,
+                        match_data TEXT,
+                        group_name TEXT,
+                        FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
+                    )
+                """)
+                cursor.execute("""
+                    INSERT INTO fixtures_migration (id, tournament_id, match_number, team1_id, team2_id, venue, match_date, status, stage, next_fixture_id, next_slot, winner_team_id, result_text, match_data, group_name)
+                    SELECT id, tournament_id, match_number, team1_id, team2_id, venue, match_date, status, stage, next_fixture_id, next_slot, winner_team_id, result_text, match_data, group_name
+                    FROM fixtures
+                """)
+                cursor.execute("DROP TABLE fixtures")
+                cursor.execute("ALTER TABLE fixtures_migration RENAME TO fixtures")
+                cursor.execute("PRAGMA foreign_keys = ON")
+        except Exception:
+            pass
             
         conn.commit()
 
@@ -945,15 +982,17 @@ def delete_tournament(tournament_id, owner=None):
     """Deletes a tournament and its associated records."""
     with get_db() as conn:
         cursor = conn.cursor()
+        try:
+            cursor.execute("DELETE FROM matches WHERE tournament_id = ?", (tournament_id,))
+        except Exception:
+            pass
         if owner and str(owner).strip():
-            cursor.execute("DELETE FROM matches WHERE tournament_id = ? AND tournament_id IN (SELECT id FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?))", (tournament_id, tournament_id, owner.strip()))
             cursor.execute("DELETE FROM fixtures WHERE tournament_id = ? AND tournament_id IN (SELECT id FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?))", (tournament_id, tournament_id, owner.strip()))
             cursor.execute("DELETE FROM points_table WHERE tournament_id = ? AND tournament_id IN (SELECT id FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?))", (tournament_id, tournament_id, owner.strip()))
             cursor.execute("DELETE FROM players WHERE tournament_id = ? AND tournament_id IN (SELECT id FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?))", (tournament_id, tournament_id, owner.strip()))
             cursor.execute("DELETE FROM teams WHERE tournament_id = ? AND tournament_id IN (SELECT id FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?))", (tournament_id, tournament_id, owner.strip()))
             cursor.execute("DELETE FROM tournaments WHERE id = ? AND LOWER(COALESCE(owner, 'Suraj')) = LOWER(?)", (tournament_id, owner.strip()))
         else:
-            cursor.execute("DELETE FROM matches WHERE tournament_id = ?", (tournament_id,))
             cursor.execute("DELETE FROM fixtures WHERE tournament_id = ?", (tournament_id,))
             cursor.execute("DELETE FROM points_table WHERE tournament_id = ?", (tournament_id,))
             cursor.execute("DELETE FROM players WHERE tournament_id = ?", (tournament_id,))

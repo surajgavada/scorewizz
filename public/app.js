@@ -5156,6 +5156,7 @@ function setupEventListeners() {
       if (val === 'manual') renderWizardManualMatchesList();
       if (val === 'groups') {
         updateWizardGroupsPreview();
+        renderWizardGroupMatchesList();
         openGroupsConfigModal();
       }
     };
@@ -5422,10 +5423,39 @@ function setupEventListeners() {
         });
       }
 
+      const chosenFixMode = window.groupsModalFixMode || 'auto';
+      setWizardGroupFixMode(chosenFixMode);
+
       updateWizardGroupsPreview();
       closeGroupsConfigModal();
       showToast(isManual ? `Tournament groups configured manually!` : `Tournament groups configured: ${numGroups} groups, top ${qualifiers} advance!`);
     };
+  }
+
+  // Wizard Step 4 Group Matchmaker Controls
+  const wizGrpFixModeAuto = document.querySelector('#wizGrpFixModeAuto');
+  if (wizGrpFixModeAuto) {
+    wizGrpFixModeAuto.onclick = () => setWizardGroupFixMode('auto');
+  }
+
+  const wizGrpFixModeManual = document.querySelector('#wizGrpFixModeManual');
+  if (wizGrpFixModeManual) {
+    wizGrpFixModeManual.onclick = () => setWizardGroupFixMode('manual');
+  }
+
+  const wizAddGroupMatchBtn = document.querySelector('#wizAddGroupMatchBtn');
+  if (wizAddGroupMatchBtn) {
+    wizAddGroupMatchBtn.onclick = () => addWizardGroupMatch();
+  }
+
+  const wizPrefillGroupMatchesBtn = document.querySelector('#wizPrefillGroupMatchesBtn');
+  if (wizPrefillGroupMatchesBtn) {
+    wizPrefillGroupMatchesBtn.onclick = () => prefillWizardGroupMatches();
+  }
+
+  const wizClearGroupMatchesBtn = document.querySelector('#wizClearGroupMatchesBtn');
+  if (wizClearGroupMatchesBtn) {
+    wizClearGroupMatchesBtn.onclick = () => clearWizardGroupMatches();
   }
 
   const addManBtn = document.querySelector('#wizAddManualMatchBtn');
@@ -5659,16 +5689,29 @@ function setupEventListeners() {
   const addFixBtn = document.querySelector('#openAddFixtureModalBtn');
   if (addFixBtn) {
     addFixBtn.onclick = () => {
-      openTournamentWizard();
-      appState.wizardStep = 4;
-      updateWizardUI();
-      const manOpt = document.querySelector('input[name="scheduleType"][value="manual"]');
-      if (manOpt) {
-        manOpt.checked = true;
-        manOpt.dispatchEvent(new Event('change'));
+      if (appState.tournament && appState.tournament.teams && appState.tournament.teams.length >= 2) {
+        openAddFixtureModal();
+      } else {
+        openTournamentWizard();
+        appState.wizardStep = 4;
+        updateWizardUI();
+        const manOpt = document.querySelector('input[name="scheduleType"][value="manual"]');
+        if (manOpt) {
+          manOpt.checked = true;
+          manOpt.dispatchEvent(new Event('change'));
+        }
       }
     };
   }
+
+  const closeAddFixModalBtn = document.querySelector('#closeAddFixtureModalBtn');
+  if (closeAddFixModalBtn) closeAddFixModalBtn.onclick = () => closeAddFixtureModal();
+
+  const cancelAddFixModalBtn = document.querySelector('#cancelAddFixtureModalBtn');
+  if (cancelAddFixModalBtn) cancelAddFixModalBtn.onclick = () => closeAddFixtureModal();
+
+  const confirmAddFixBtn = document.querySelector('#confirmAddFixtureBtn');
+  if (confirmAddFixBtn) confirmAddFixBtn.onclick = () => handleConfirmAddFixture();
 
   // All Tournaments View controls
   const allTourCreateBtn = document.querySelector('#allTournamentsCreateBtn');
@@ -5867,6 +5910,20 @@ window.openGroupsConfigModal = function () {
       updateGroupsModalPreview();
     };
   }
+
+  window.groupsModalFixMode = appState.wizardData?.groupFixturesMode || 'auto';
+  const modalGrpFixModeAuto = document.querySelector('#modalGrpFixModeAuto');
+  const modalGrpFixModeManual = document.querySelector('#modalGrpFixModeManual');
+
+  function setModalFixMode(mode) {
+    window.groupsModalFixMode = mode;
+    if (modalGrpFixModeAuto) modalGrpFixModeAuto.classList.toggle('active', mode === 'auto');
+    if (modalGrpFixModeManual) modalGrpFixModeManual.classList.toggle('active', mode === 'manual');
+  }
+
+  if (modalGrpFixModeAuto) modalGrpFixModeAuto.onclick = () => setModalFixMode('auto');
+  if (modalGrpFixModeManual) modalGrpFixModeManual.onclick = () => setModalFixMode('manual');
+  setModalFixMode(window.groupsModalFixMode);
 
   setModalGroupMode(window.groupsModalMode);
   modal.classList.add('show');
